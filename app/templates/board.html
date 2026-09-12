@@ -1,80 +1,48 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Command Centre</title>
+{% extends "base.html" %}
+{% block title %}Tasks — Command Centre{% endblock %}
+{% block headright %}<span class="count">{{ total }} task{{ '' if total == 1 else 's' }}</span>{% endblock %}
+{% block main %}
 <style>
-  :root{
-    --page:#f6f7f8; --card:#fff; --line:#e2e6e9; --ink:#14181b; --dim:#5c666e;
-    --open:#5b6d7a; --doing:#1d6b8a; --blocked:#9a5b18; --done:#2f6b45;
-  }
-  @media (prefers-color-scheme:dark){
-    :root{ --page:#101315; --card:#181c1f; --line:#282e33; --ink:#e8ecee; --dim:#95a0a8;
-           --open:#8fa2ad; --doing:#59b6d6; --blocked:#d5a05a; --done:#6fbb8e; }
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--page);color:var(--ink);
-       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:0 20px 60px}
-  .wrap{max-width:1200px;margin:0 auto}
-  header{padding:36px 0 20px;border-bottom:1px solid var(--line);
-         display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap}
-  h1{margin:0;font-size:22px;letter-spacing:-.02em}
-  .count{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--dim);letter-spacing:.08em;text-transform:uppercase}
-  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:22px}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
   .col{display:flex;flex-direction:column;gap:8px;min-width:0}
   .colhead{display:flex;align-items:center;gap:7px;padding:0 2px 4px}
-  .dot{width:7px;height:7px;border-radius:50%;flex:none}
   .colname{font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
-  .task{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:11px 12px;
-        display:flex;flex-direction:column;gap:6px}
+  .task{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:11px 12px;display:flex;flex-direction:column;gap:6px}
+  .task.sample{border-style:dashed}
   .title{font-size:14px;font-weight:600;letter-spacing:-.005em;overflow-wrap:anywhere}
   .detail{font-size:12.5px;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere}
   .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font:11px ui-monospace,Menlo,monospace;color:var(--dim)}
   .hi{color:var(--blocked)}
-  form{margin:0}
-  select{font:11px ui-monospace,Menlo,monospace;background:transparent;color:var(--dim);
-         border:1px solid var(--line);border-radius:4px;padding:2px 4px}
+  select{font:11px ui-monospace,Menlo,monospace;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:2px 4px}
   .empty{font-size:13px;color:var(--dim);padding:10px 2px}
 </style>
-</head>
-<body>
-<div class="wrap">
-  <header>
-    <h1>Command Centre</h1>
-    <span class="count">{{ total }} task{{ '' if total == 1 else 's' }}</span>
-  </header>
-  <div class="cols">
-    {% for st in statuses %}
-    <div class="col">
-      <div class="colhead">
-        <span class="dot" style="background:var(--{{ st }})"></span>
-        <span class="colname">{{ st }} · {{ columns[st]|length }}</span>
-      </div>
-      {% for t in columns[st] %}
-      <div class="task">
-        <div class="title">{{ t.title }}</div>
-        {% if t.detail %}<div class="detail">{{ t.detail }}</div>{% endif %}
-        <div class="meta">
-          <span>{{ t.owner }}</span>
-          {% if t.priority == 'high' %}<span class="hi">high</span>{% endif %}
-          {% if t.due %}<span>due {{ t.due }}</span>{% endif %}
-          <span>{{ t.source }}</span>
-        </div>
-        <form method="post" action="/tasks/{{ t.id }}/status">
-          <select name="status" onchange="this.form.submit()">
-            {% for s in statuses %}
-            <option value="{{ s }}" {% if s == t.status %}selected{% endif %}>{{ s }}</option>
-            {% endfor %}
-          </select>
-        </form>
-      </div>
-      {% else %}
-      <div class="empty">Nothing here.</div>
-      {% endfor %}
+<div class="cols">
+  {% for st in statuses %}
+  <div class="col">
+    <div class="colhead">
+      <span class="dot" style="background:var(--{{ st }})"></span>
+      <span class="colname">{{ st }} · {{ columns[st]|length }}</span>
     </div>
+    {% for t in columns[st] %}
+    <div class="task {{ 'sample' if t.source == 'sample' else '' }}">
+      <div class="title">{{ t.title }}</div>
+      {% if t.detail %}<div class="detail">{{ t.detail }}</div>{% endif %}
+      <div class="meta">
+        <span>{{ t.owner }}</span>
+        {% if t.priority == 'high' %}<span class="hi">high</span>{% endif %}
+        {% if t.due %}<span>due {{ t.due }}</span>{% endif %}
+        <span>{{ t.source }}</span>
+      </div>
+      <form method="post" action="/tasks/{{ t.id }}/status">
+        <select name="status" onchange="this.form.submit()" aria-label="status">
+          {% for s in statuses %}<option value="{{ s }}" {% if s == t.status %}selected{% endif %}>{{ s }}</option>{% endfor %}
+        </select>
+      </form>
+    </div>
+    {% else %}
+    <div class="empty">Nothing here.</div>
     {% endfor %}
   </div>
+  {% endfor %}
 </div>
-</body>
-</html>
+{% endblock %}

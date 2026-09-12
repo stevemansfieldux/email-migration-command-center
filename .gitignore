@@ -7,3 +7,4 @@ venv/
 *.sqlite3
 .DS_Store
 transcripts/
+.claude/launch.json

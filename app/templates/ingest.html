@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Ingest — Command Centre{% endblock %}
+{% block main %}
+<style>
+  .grid{display:grid;grid-template-columns:1fr;gap:14px;max-width:640px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .actions{display:flex;gap:10px;align-items:center;padding-top:4px}
+  .preview{margin-top:28px;display:flex;flex-direction:column;gap:12px;max-width:760px}
+  .preview h2{margin:0;font-size:15px;font-weight:600}
+  .found{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:11px 12px;display:flex;flex-direction:column;gap:5px}
+  .found .t{font-weight:600;font-size:14px}
+  .found .d{font-size:12.5px;color:var(--dim)}
+  .found .q{font-size:12.5px;color:var(--dim);border-left:2px solid var(--line);padding-left:9px;font-style:italic}
+  .found .m{font:11px ui-monospace,Menlo,monospace;color:var(--dim);display:flex;gap:10px;flex-wrap:wrap}
+  .hint{font-size:12.5px;color:var(--dim)}
+</style>
+
+{% if error %}<div class="note bad" style="max-width:640px;margin-bottom:18px">{{ error }}</div>{% endif %}
+
+{% if not preview %}
+<form method="post" action="/ingest" enctype="multipart/form-data" class="grid">
+  <label>Meeting title <input type="text" name="title" required placeholder="Sat 12 Sep planning"></label>
+  <div class="row">
+    <label>Participants <input type="text" name="participants" placeholder="Steve, Matt"></label>
+    <label>Date <input type="date" name="date"></label>
+  </div>
+  <label>Transcript <input type="file" name="transcript" accept=".txt,.md,.vtt,.srt,text/plain" required></label>
+  <div class="actions">
+    <button class="btn" type="submit">Preview tasks</button>
+    <span class="hint">Nothing is written until you confirm on the next screen.</span>
+  </div>
+</form>
+{% else %}
+<div class="preview">
+  <h2>{{ preview.tasks|length }} task{{ '' if preview.tasks|length == 1 else 's' }} found in “{{ preview.title }}”</h2>
+  {% if preview.tasks %}
+    {% for t in preview.tasks %}
+    <div class="found">
+      <div class="t">{{ t.title }}</div>
+      {% if t.detail %}<div class="d">{{ t.detail }}</div>{% endif %}
+      <div class="q">{{ t.quote }}</div>
+      <div class="m"><span>{{ t.owner }}</span><span>{{ t.priority }}</span>{% if t.due %}<span>due {{ t.due }}</span>{% endif %}</div>
+    </div>
+    {% endfor %}
+    <form method="post" action="/ingest/commit" class="actions">
+      <input type="hidden" name="payload" value='{{ preview.payload_json }}'>
+      <button class="btn" type="submit">Add {{ preview.tasks|length }} to the board</button>
+      <a class="btn quiet" href="/ingest" style="text-decoration:none">Discard</a>
+    </form>
+  {% else %}
+    <div class="note">The extractor found nothing anyone committed to. That is a valid result — not every meeting produces tasks.</div>
+    <div class="actions"><a class="btn quiet" href="/ingest" style="text-decoration:none">Back</a></div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

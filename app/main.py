@@ -4,7 +4,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import Depends, FastAPI, Form, Header, HTTPException, Request
+import html
+import json
+
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -46,7 +49,7 @@ def board(request: Request):
     columns = {st: [t for t in tasks if t.status == st] for st in STATUSES}
     return templates.TemplateResponse(
         "board.html",
-        {"request": request, "columns": columns, "statuses": STATUSES, "total": len(tasks)},
+        {"request": request, "columns": columns, "statuses": STATUSES, "total": len(tasks), "tab": "tasks"},
     )
 
 
@@ -102,6 +105,68 @@ def create_task(payload: TaskIn):
 
 # ---------- ingest ----------
 
+def _commit_meeting(title: str, transcript: str, occurred_at: Optional[str], found: list[dict]) -> dict:
+    """Write a meeting source and its extracted tasks. Used by both the API and the UI."""
+    with db.session() as s:
+        src = db.Source(kind="meeting", title=title, body=transcript, occurred_at=occurred_at)
+        s.add(src)
+        s.commit()
+        s.refresh(src)
+        for t in found:
+            s.add(db.Task(
+                title=t["title"][:200],
+                detail=(t.get("detail", "") + "\n\n> " + t.get("quote", "")).strip(),
+                owner=t.get("owner", "unassigned"),
+                priority=t.get("priority", "normal"),
+                due=t.get("due"),
+                source="meeting",
+                source_ref=f"{title} (source {src.id})",
+            ))
+        s.commit()
+        return {"committed": True, "count": len(found), "source_id": src.id}
+
+
+@app.get("/ingest", response_class=HTMLResponse)
+def ingest_page(request: Request):
+    return templates.TemplateResponse("ingest.html", {"request": request, "tab": "ingest", "preview": None, "error": None})
+
+
+@app.post("/ingest", response_class=HTMLResponse)
+async def ingest_upload(
+    request: Request,
+    title: str = Form(...),
+    participants: str = Form(""),
+    date: str = Form(""),
+    transcript: UploadFile = File(...),
+):
+    """Upload a transcript, run extraction, show the result. Writes nothing."""
+    raw = (await transcript.read()).decode("utf-8", errors="replace")
+    who = [p.strip() for p in participants.split(",") if p.strip()]
+    ctx = {"request": request, "tab": "ingest", "preview": None, "error": None}
+    if not raw.strip():
+        ctx["error"] = "That file is empty."
+        return templates.TemplateResponse("ingest.html", ctx)
+    try:
+        found = extract.extract(raw, who)
+    except extract.NotConfigured:
+        ctx["error"] = "Extraction isn't configured on this server — ANTHROPIC_API_KEY is not set. The upload was read fine; nothing was written."
+        return templates.TemplateResponse("ingest.html", ctx)
+    payload = {"title": title, "transcript": raw, "occurred_at": date or None, "tasks": found}
+    ctx["preview"] = {"title": title, "tasks": found, "payload_json": html.escape(json.dumps(payload), quote=True)}
+    return templates.TemplateResponse("ingest.html", ctx)
+
+
+@app.post("/ingest/commit")
+def ingest_commit(payload: str = Form(...)):
+    """Write the previewed tasks. The preview carried them here so extraction isn't re-run."""
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "bad payload")
+    _commit_meeting(data["title"], data["transcript"], data.get("occurred_at"), data.get("tasks", []))
+    return RedirectResponse("/", status_code=303)
+
+
 class MeetingIn(BaseModel):
     title: str
     transcript: str
@@ -124,33 +189,7 @@ def ingest_meeting(payload: MeetingIn):
 
     if not payload.commit:
         return {"committed": False, "count": len(found), "tasks": found}
-
-    with db.session() as s:
-        src = db.Source(
-            kind="meeting",
-            title=payload.title,
-            body=payload.transcript,
-            occurred_at=payload.occurred_at,
-        )
-        s.add(src)
-        s.commit()
-        s.refresh(src)
-
-        written = []
-        for t in found:
-            task = db.Task(
-                title=t["title"][:200],
-                detail=(t.get("detail", "") + "\n\n> " + t.get("quote", "")).strip(),
-                owner=t.get("owner", "unassigned"),
-                priority=t.get("priority", "normal"),
-                due=t.get("due"),
-                source="meeting",
-                source_ref=f"{payload.title} (source {src.id})",
-            )
-            s.add(task)
-            written.append(task)
-        s.commit()
-        return {"committed": True, "count": len(written), "source_id": src.id}
+    return _commit_meeting(payload.title, payload.transcript, payload.occurred_at, found)
 
 
 @app.get("/healthz")
