@@ -45,6 +45,14 @@ class Comment(SQLModel, table=True):
     created_at: datetime = Field(default_factory=now)
 
 
+class ChatMessage(SQLModel, table=True):
+    """The Ask Claude thread. One thread for now; clear it to start over."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    role: str                     # user | assistant
+    content: str
+    created_at: datetime = Field(default_factory=now)
+
+
 class Source(SQLModel, table=True):
     """Raw material we ingested, kept so a task can be traced back to what was said."""
     id: Optional[int] = Field(default=None, primary_key=True)

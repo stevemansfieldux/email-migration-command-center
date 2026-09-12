@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Settings — Command Centre{% endblock %}
+{% block main %}
+<style>
+  .grid{max-width:720px;display:flex;flex-direction:column;gap:22px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+  .card h2{margin:0;font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
+  dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:13.5px}
+  dt{font:11px ui-monospace,Menlo,monospace;color:var(--dim);padding-top:3px;white-space:nowrap}
+  dd{margin:0}
+  pre{margin:0;font:12px ui-monospace,Menlo,monospace;white-space:pre-wrap;color:var(--dim);background:var(--page);border:1px solid var(--line);border-radius:5px;padding:9px 11px;max-height:220px;overflow:auto}
+  code{font:12px ui-monospace,Menlo,monospace;background:var(--page);border:1px solid var(--line);border-radius:3px;padding:1px 5px}
+  .ok{color:var(--done)} .bad{color:var(--bad)}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  select{padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--ink)}
+  p{margin:0;font-size:13.5px;color:var(--dim);line-height:1.55}
+</style>
+<div class="grid">
+
+  <div class="card">
+    <h2>Credential</h2>
+    <dl>
+      <dt>in use</dt><dd><strong>{{ st.source }}</strong></dd>
+      <dt>ANTHROPIC_API_KEY</dt><dd>{{ 'set' if st.api_key_set else 'not set' }}</dd>
+      <dt>ANTHROPIC_AUTH_TOKEN</dt><dd>{{ 'set' if st.auth_token_set else 'not set' }}</dd>
+      <dt>ant CLI</dt><dd>{{ 'installed' if st.ant_installed else 'not installed' }}</dd>
+      <dt>profiles on disk</dt><dd>{{ st.profiles|join(', ') if st.profiles else 'none' }}</dd>
+    </dl>
+    {% if st.ant_status %}<pre>{{ st.ant_status }}</pre>{% endif %}
+    <form method="post" action="/settings/test" class="row">
+      <button class="btn" type="submit">Test connection</button>
+      {% if result %}<span class="{{ 'ok' if result.ok else 'bad' }}">{{ result.msg }}</span>{% endif %}
+    </form>
+  </div>
+
+  {% if not st.api_key_set and not st.auth_token_set and not st.profiles %}
+  <div class="card">
+    <h2>Sign in with your local Claude</h2>
+    <p>This app holds no key. It uses whatever credential the Anthropic SDK resolves on this machine, and the intended way to provide one locally is an OAuth profile from the Anthropic CLI:</p>
+    <pre>brew install anthropics/tap/ant
+xattr -d com.apple.quarantine "$(brew --prefix)/bin/ant"
+ant auth login</pre>
+    <p>That opens a browser, stores a profile under <code>~/.config/anthropic/</code>, and this app picks it up on the next request — nothing to paste here. <code>ant auth status</code> shows which org and workspace the profile is bound to.</p>
+    <p>Two things worth knowing: a set <code>ANTHROPIC_API_KEY</code> silently wins over any profile, so leave it unset if you mean to use the profile. And Claude Code may warn about an auth conflict with its own login — keep one.</p>
+  </div>
+  {% endif %}
+
+  {% if st.profiles|length > 1 or st.profile_env %}
+  <div class="card">
+    <h2>Profile for this app</h2>
+    <form method="post" action="/settings/profile" class="row">
+      <select name="profile">
+        <option value="" {% if not st.profile_env %}selected{% endif %}>active / default</option>
+        {% for p in st.profiles %}<option value="{{ p }}" {% if p == st.profile_env %}selected{% endif %}>{{ p }}</option>{% endfor %}
+      </select>
+      <button class="btn quiet" type="submit">Use this profile</button>
+    </form>
+    <p>Sets <code>ANTHROPIC_PROFILE</code> for this app and saves it to <code>.env</code>.</p>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>Models</h2>
+    <dl>
+      <dt>Ask Claude</dt><dd><code>{{ model }}</code> <span style="font-size:12px;color:var(--dim)">— ASK_MODEL</span></dd>
+      <dt>Extraction</dt><dd><code>{{ extract_model }}</code> <span style="font-size:12px;color:var(--dim)">— EXTRACT_MODEL</span></dd>
+    </dl>
+    <p>Change either in <code>.env</code> and restart.</p>
+  </div>
+
+</div>
+{% endblock %}

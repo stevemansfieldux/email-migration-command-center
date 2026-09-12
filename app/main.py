@@ -13,10 +13,31 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlmodel import select
 
-from . import db, extract
+from . import ask as askmod, auth_status, db, extract
+
+ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+
+
+def load_env() -> None:
+    if ENV_FILE.exists():
+        for line in ENV_FILE.read_text().splitlines():
+            if "=" in line and not line.strip().startswith("#"):
+                k, v = line.split("=", 1)
+                if v.strip():
+                    os.environ.setdefault(k.strip(), v.strip())
+
+
+def write_env(key: str, value: str) -> None:
+    lines = ENV_FILE.read_text().splitlines() if ENV_FILE.exists() else []
+    lines = [l for l in lines if not l.startswith(f"{key}=")]
+    if value:
+        lines.append(f"{key}={value}")
+    ENV_FILE.write_text("\n".join(lines) + "\n")
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    load_env()
     db.init()
     yield
 
@@ -249,8 +270,8 @@ async def ingest_upload(
         return templates.TemplateResponse("ingest.html", ctx)
     try:
         found = extract.extract(raw, who)
-    except extract.NotConfigured:
-        ctx["error"] = "Extraction isn't configured on this server — ANTHROPIC_API_KEY is not set. The upload was read fine; nothing was written."
+    except extract.NotConfigured as e:
+        ctx["error"] = f"{e} — see Settings. The upload was read fine; nothing was written."
         return templates.TemplateResponse("ingest.html", ctx)
     payload = {"title": title, "transcript": raw, "occurred_at": date or None, "tasks": found}
     ctx["preview"] = {"title": title, "tasks": found, "payload_json": html.escape(json.dumps(payload), quote=True)}
@@ -291,6 +312,83 @@ def ingest_meeting(payload: MeetingIn):
     if not payload.commit:
         return {"committed": False, "count": len(found), "tasks": found}
     return _commit_meeting(payload.title, payload.transcript, payload.occurred_at, found)
+
+
+# ---------- ask ----------
+
+@app.get("/ask", response_class=HTMLResponse)
+def ask_page(request: Request, error: Optional[str] = None):
+    with db.session() as s:
+        thread = s.exec(select(db.ChatMessage).order_by(db.ChatMessage.created_at)).all()
+    return templates.TemplateResponse("ask.html", {"request": request, "tab": "ask", "thread": thread, "error": error, "model": askmod.MODEL})
+
+
+@app.post("/ask")
+def ask_send(request: Request, message: str = Form(...)):
+    text = message.strip()
+    if not text:
+        return RedirectResponse("/ask", status_code=303)
+    with db.session() as s:
+        s.add(db.ChatMessage(role="user", content=text))
+        s.commit()
+        history = [{"role": m.role, "content": m.content}
+                   for m in s.exec(select(db.ChatMessage).order_by(db.ChatMessage.created_at)).all()]
+    import anthropic
+    try:
+        reply = askmod.ask(history)
+    except anthropic.AuthenticationError:
+        return RedirectResponse("/ask?error=The+API+rejected+the+credential+%E2%80%94+see+Settings.", status_code=303)
+    except TypeError as e:
+        if not auth_status.is_no_credential(e):
+            raise
+        return RedirectResponse("/ask?error=No+Anthropic+credential+on+this+machine+%E2%80%94+see+Settings.", status_code=303)
+    except anthropic.APIStatusError as e:
+        return RedirectResponse(f"/ask?error=API+error+{e.status_code}", status_code=303)
+    except anthropic.APIConnectionError:
+        return RedirectResponse("/ask?error=Network+error+reaching+the+API.", status_code=303)
+    with db.session() as s:
+        s.add(db.ChatMessage(role="assistant", content=reply))
+        s.commit()
+    return RedirectResponse("/ask", status_code=303)
+
+
+@app.post("/ask/clear")
+def ask_clear():
+    with db.session() as s:
+        for m in s.exec(select(db.ChatMessage)).all():
+            s.delete(m)
+        s.commit()
+    return RedirectResponse("/ask", status_code=303)
+
+
+# ---------- settings ----------
+
+def _settings_ctx(request: Request, result=None) -> dict:
+    return {"request": request, "tab": "settings", "st": auth_status.status(),
+            "model": askmod.MODEL, "extract_model": os.environ.get("EXTRACT_MODEL", "claude-opus-5"), "result": result}
+
+
+@app.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request):
+    return templates.TemplateResponse("settings.html", _settings_ctx(request))
+
+
+@app.post("/settings/test", response_class=HTMLResponse)
+def settings_test(request: Request):
+    ok, msg = auth_status.test_connection(askmod.MODEL)
+    return templates.TemplateResponse("settings.html", _settings_ctx(request, {"ok": ok, "msg": msg}))
+
+
+@app.post("/settings/profile")
+def settings_profile(profile: str = Form("")):
+    """Pick which `ant` profile this app uses. Persists to .env; takes effect immediately."""
+    profile = profile.strip()
+    if profile:
+        os.environ["ANTHROPIC_PROFILE"] = profile
+    else:
+        os.environ.pop("ANTHROPIC_PROFILE", None)
+    write_env("ANTHROPIC_PROFILE", profile)
+    return RedirectResponse("/settings", status_code=303)
 
 
 @app.get("/healthz")

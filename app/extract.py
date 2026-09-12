@@ -26,20 +26,34 @@ If nothing was committed to, return an empty list. That is a valid and common an
 
 
 class NotConfigured(RuntimeError):
-    pass
+    """No usable credential. The SDK looks for ANTHROPIC_API_KEY, then
+    ANTHROPIC_AUTH_TOKEN, then an `ant auth login` profile — so this is raised
+    only when none of those resolved, not merely when the env var is unset."""
 
 
 def extract(text: str, participants: list[str] | None = None) -> list[dict[str, Any]]:
-    key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
-    if not key:
-        raise NotConfigured("ANTHROPIC_API_KEY is not set")
-
-    from anthropic import Anthropic
+    import anthropic
 
     who = ", ".join(participants) if participants else "the participants"
-    client = Anthropic(api_key=key)
-    resp = client.messages.create(
-        model=os.environ.get("EXTRACT_MODEL", "claude-sonnet-5"),
+    client = anthropic.Anthropic()
+    try:
+        resp = _call(client, who, text)
+    except anthropic.AuthenticationError as e:
+        raise NotConfigured("The API rejected the credential — re-run `ant auth login` or check the key") from e
+    except TypeError as e:
+        from .auth_status import is_no_credential
+        if not is_no_credential(e):
+            raise
+        raise NotConfigured("No Anthropic credential resolved — run `ant auth login` or set ANTHROPIC_API_KEY") from e
+    for block in resp.content:
+        if block.type == "tool_use" and block.name == "record_tasks":
+            return block.input.get("tasks", [])
+    return []
+
+
+def _call(client, who: str, text: str):
+    return client.messages.create(
+        model=os.environ.get("EXTRACT_MODEL", "claude-opus-5"),
         max_tokens=4000,
         system=SYSTEM,
         tools=[{
@@ -73,11 +87,6 @@ def extract(text: str, participants: list[str] | None = None) -> list[dict[str, 
             "content": f"Participants: {who}\n\nSource:\n\n{text}",
         }],
     )
-
-    for block in resp.content:
-        if block.type == "tool_use" and block.name == "record_tasks":
-            return block.input.get("tasks", [])
-    return []
 
 
 def to_json(tasks: list[dict[str, Any]]) -> str:
