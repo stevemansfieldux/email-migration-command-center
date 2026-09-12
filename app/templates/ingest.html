@@ -24,6 +24,7 @@
   .src.soon{border-style:dashed;opacity:.85}
   .src .ic{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;
            font:600 13px/1 ui-monospace,Menlo,monospace;color:#fff;letter-spacing:-.02em}
+  .src .ic svg{display:block}
   .src .nm{font-size:13.5px;font-weight:600}
   .src .st{font:10.5px ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;gap:6px}
   .src .st i{width:6px;height:6px;border-radius:50%;background:var(--dim);display:inline-block}
@@ -41,25 +42,25 @@
     <div class="st on"><i></i>Available</div>
   </div>
   <div class="src soon">
-    <div class="ic" style="background:#24292f">GH</div>
+    <div class="ic" style="background:#24292f">{% set m = logo('github') %}{% if m %}{{ m|safe }}{% else %}GH{% endif %}</div>
     <div class="nm">GitHub</div>
     <div class="st"><i></i>Not connected</div>
     <button type="button" disabled title="Connector not built yet">Connect</button>
   </div>
   <div class="src soon">
-    <div class="ic" style="background:#4a154b">SL</div>
+    <div class="ic" style="background:#4a154b">{% set m = logo('slack') %}{% if m %}{{ m|safe }}{% else %}SL{% endif %}</div>
     <div class="nm">Slack</div>
     <div class="st"><i></i>Not connected</div>
     <button type="button" disabled title="Connector not built yet">Connect</button>
   </div>
   <div class="src soon">
-    <div class="ic" style="background:#00832d">GM</div>
+    <div class="ic" style="background:#00832d">{% set m = logo('googlemeet') %}{% if m %}{{ m|safe }}{% else %}GM{% endif %}</div>
     <div class="nm">Google Meet</div>
     <div class="st"><i></i>Not connected</div>
     <button type="button" disabled title="Connector not built yet">Connect</button>
   </div>
   <div class="src soon">
-    <div class="ic" style="background:#1f7a3e">KL</div>
+    <div class="ic" style="background:#1f7a3e">{% set m = logo('klaviyo') %}{% if m %}{{ m|safe }}{% else %}KL{% endif %}</div>
     <div class="nm">Klaviyo</div>
     <div class="st"><i></i>Not connected</div>
     <button type="button" disabled title="Connector not built yet">Connect</button>

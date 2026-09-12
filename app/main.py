@@ -44,6 +44,21 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Command Centre", lifespan=lifespan)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+LOGOS = Path(__file__).parent / "static" / "logos"
+
+
+def logo(slug: str) -> Optional[str]:
+    """Inline brand mark from app/static/logos/<slug>.svg, recoloured via currentColor.
+    Returns None when there's no file, so the template falls back to a monogram."""
+    f = LOGOS / f"{slug}.svg"
+    if not f.exists():
+        return None
+    svg = f.read_text()
+    svg = svg.replace("<svg ", '<svg fill="currentColor" width="18" height="18" aria-hidden="true" ', 1)
+    return svg
+
+
+templates.env.globals["logo"] = logo
 
 STATUSES = ["open", "doing", "blocked", "done"]
 
