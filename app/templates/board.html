@@ -4,28 +4,35 @@
 {% block main %}
 <style>
   .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
-  .col{display:flex;flex-direction:column;gap:8px;min-width:0}
+  .col{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:140px;border-radius:8px;padding:2px;transition:background .12s}
+  .col.over{background:color-mix(in srgb,var(--accent) 10%,transparent)}
   .colhead{display:flex;align-items:center;gap:7px;padding:0 2px 4px}
   .colname{font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
-  .task{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:11px 12px;display:flex;flex-direction:column;gap:6px}
+  .task{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:11px 12px;display:flex;flex-direction:column;gap:6px;cursor:grab}
+  .task:active{cursor:grabbing}
+  .task.dragging{opacity:.45}
   .task.sample{border-style:dashed}
   .title{font-size:14px;font-weight:600;letter-spacing:-.005em;overflow-wrap:anywhere}
+  .title a{color:inherit;text-decoration:none}
+  .title a:hover{text-decoration:underline}
+  .title a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
   .detail{font-size:12.5px;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere}
   .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font:11px ui-monospace,Menlo,monospace;color:var(--dim)}
   .hi{color:var(--blocked)}
-  select{font:11px ui-monospace,Menlo,monospace;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:2px 4px}
+  .task select{font:11px ui-monospace,Menlo,monospace;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:2px 4px}
   .empty{font-size:13px;color:var(--dim);padding:10px 2px}
+  @media (prefers-reduced-motion:reduce){.col{transition:none}}
 </style>
 <div class="cols">
   {% for st in statuses %}
-  <div class="col">
+  <div class="col" data-status="{{ st }}">
     <div class="colhead">
       <span class="dot" style="background:var(--{{ st }})"></span>
-      <span class="colname">{{ st }} · {{ columns[st]|length }}</span>
+      <span class="colname">{{ st }} · <span class="n">{{ columns[st]|length }}</span></span>
     </div>
     {% for t in columns[st] %}
-    <div class="task {{ 'sample' if t.source == 'sample' else '' }}">
-      <div class="title">{{ t.title }}</div>
+    <div class="task {{ 'sample' if t.source == 'sample' else '' }}" draggable="true" data-id="{{ t.id }}">
+      <div class="title"><a href="/tasks/{{ t.id }}">{{ t.title }}</a></div>
       {% if t.detail %}<div class="detail">{{ t.detail }}</div>{% endif %}
       <div class="meta">
         <span>{{ t.owner }}</span>
@@ -39,10 +46,38 @@
         </select>
       </form>
     </div>
-    {% else %}
-    <div class="empty">Nothing here.</div>
     {% endfor %}
+    <div class="empty" {% if columns[st] %}hidden{% endif %}>Nothing here.</div>
   </div>
   {% endfor %}
 </div>
+<script>
+(() => {
+  let dragged = null;
+  const recount = () => document.querySelectorAll('.col').forEach(c => {
+    const n = c.querySelectorAll('.task').length;
+    c.querySelector('.n').textContent = n;
+    c.querySelector('.empty').hidden = n > 0;
+  });
+  document.querySelectorAll('.task').forEach(el => {
+    el.addEventListener('dragstart', e => { dragged = el; el.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+    el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragged = null; document.querySelectorAll('.col.over').forEach(c => c.classList.remove('over')); });
+  });
+  document.querySelectorAll('.col').forEach(col => {
+    col.addEventListener('dragover', e => { if (!dragged) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; col.classList.add('over'); });
+    col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('over'); });
+    col.addEventListener('drop', async e => {
+      e.preventDefault(); col.classList.remove('over');
+      if (!dragged) return;
+      const status = col.dataset.status, id = dragged.dataset.id, from = dragged.parentElement;
+      if (from === col) return;
+      col.insertBefore(dragged, col.querySelector('.empty'));
+      dragged.querySelector('select').value = status;
+      recount();
+      const r = await fetch(`/api/tasks/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+      if (!r.ok) { from.insertBefore(dragged, from.querySelector('.empty')); recount(); alert('Could not move that task — reloading.'); location.reload(); }
+    });
+  });
+})();
+</script>
 {% endblock %}

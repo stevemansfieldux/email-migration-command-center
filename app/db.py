@@ -37,6 +37,14 @@ class Task(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=now)
 
 
+class Comment(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_id: int = Field(foreign_key="task.id", index=True)
+    author: str
+    body: str
+    created_at: datetime = Field(default_factory=now)
+
+
 class Source(SQLModel, table=True):
     """Raw material we ingested, kept so a task can be traced back to what was said."""
     id: Optional[int] = Field(default=None, primary_key=True)

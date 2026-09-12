@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ t.title }} — Command Centre{% endblock %}
+{% block headright %}<a class="mono" href="/" style="padding-bottom:14px;text-decoration:none;color:var(--dim)">← all tasks</a>{% endblock %}
+{% block main %}
+<style>
+  .layout{display:grid;grid-template-columns:1fr;gap:26px;max-width:820px}
+  @media (min-width:900px){.layout{grid-template-columns:minmax(0,1fr) 280px}}
+  .edit{display:flex;flex-direction:column;gap:12px}
+  .edit .title{font-size:20px;font-weight:600;letter-spacing:-.015em;padding:6px 0;border:0;border-bottom:1px solid transparent;background:transparent;color:var(--ink);width:100%}
+  .edit .title:focus{outline:none;border-bottom-color:var(--accent)}
+  textarea{width:100%;min-height:110px;padding:9px 10px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--ink);resize:vertical;line-height:1.5}
+  .quote{border-left:2px solid var(--accent);padding:6px 12px;font-style:italic;color:var(--dim);font-size:13.5px;background:var(--card);border-radius:0 5px 5px 0}
+  .qlabel{font:10px ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+  .side{display:flex;flex-direction:column;gap:12px}
+  .side select,.side input{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--ink)}
+  .src{font-size:12px;color:var(--dim);border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:3px}
+  .comments{margin-top:34px;max-width:820px;display:flex;flex-direction:column;gap:12px}
+  .comments h2{margin:0;font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
+  .c{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+  .c .who{font:11px ui-monospace,Menlo,monospace;color:var(--dim);display:flex;gap:10px}
+  .c .body{font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+  .add{display:grid;grid-template-columns:1fr;gap:10px;margin-top:6px}
+  .add .row{display:grid;grid-template-columns:180px 1fr;gap:10px;align-items:end}
+  .add textarea{min-height:72px}
+  .empty{font-size:13px;color:var(--dim)}
+</style>
+
+<form method="post" action="/tasks/{{ t.id }}" class="layout">
+  <div class="edit">
+    <input class="title" type="text" name="title" value="{{ t.title }}" required aria-label="title">
+    {% if quotes %}
+    <div>
+      <div class="qlabel">From the source</div>
+      {% for q in quotes %}<div class="quote">{{ q }}</div>{% endfor %}
+    </div>
+    {% endif %}
+    <label>Detail<textarea name="detail">{{ body }}</textarea></label>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn" type="submit">Save</button>
+      <span class="mono">updated {{ t.updated_at.strftime('%d %b %H:%M') }}</span>
+    </div>
+  </div>
+  <aside class="side">
+    <label>Status
+      <select name="status">{% for s in statuses %}<option value="{{ s }}" {% if s == t.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+    </label>
+    <label>Owner <input type="text" name="owner" value="{{ t.owner }}"></label>
+    <label>Priority
+      <select name="priority">{% for p in ['low','normal','high'] %}<option value="{{ p }}" {% if p == t.priority %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+    </label>
+    <label>Due <input type="date" name="due" value="{{ t.due or '' }}"></label>
+    <div class="src">
+      <span>source: {{ t.source }}</span>
+      {% if t.source_ref %}<span>{{ t.source_ref }}</span>{% endif %}
+      <span>created {{ t.created_at.strftime('%d %b %Y') }}</span>
+    </div>
+  </aside>
+</form>
+
+<section class="comments">
+  <h2>Comments · {{ comments|length }}</h2>
+  {% for c in comments %}
+  <div class="c">
+    <div class="who"><span>{{ c.author }}</span><span>{{ c.created_at.strftime('%d %b %H:%M') }}</span></div>
+    <div class="body">{{ c.body }}</div>
+  </div>
+  {% else %}
+  <div class="empty">No comments yet.</div>
+  {% endfor %}
+  <form method="post" action="/tasks/{{ t.id }}/comments" class="add">
+    <div class="row">
+      <label>Name <input type="text" name="author" required placeholder="Steve"></label>
+    </div>
+    <label>Comment <textarea name="body" required placeholder="What changed, what's blocking, what was decided…"></textarea></label>
+    <div><button class="btn" type="submit">Add comment</button></div>
+  </form>
+</section>
+{% endblock %}

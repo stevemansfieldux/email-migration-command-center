@@ -40,6 +40,32 @@ def require_token(x_ingest_token: str = Header(default="")) -> None:
         raise HTTPException(401, "bad or missing X-Ingest-Token")
 
 
+# ---------- helpers ----------
+
+def split_detail(detail: str) -> tuple[str, list[str]]:
+    """Separate the free-text body from the '> quoted' lines the extractor appends."""
+    body, quotes = [], []
+    for line in (detail or "").splitlines():
+        if line.startswith("> "):
+            quotes.append(line[2:])
+        else:
+            body.append(line)
+    return "\n".join(body).strip(), quotes
+
+
+PATCHABLE = {"title", "detail", "owner", "priority", "due", "status", "tags"}
+
+
+def _apply(task: db.Task, fields: dict) -> None:
+    for k, v in fields.items():
+        if k not in PATCHABLE:
+            continue
+        if k == "status" and v not in STATUSES:
+            raise HTTPException(400, f"status must be one of {STATUSES}")
+        setattr(task, k, v if v != "" else (None if k == "due" else ""))
+    task.updated_at = db.now()
+
+
 # ---------- board ----------
 
 @app.get("/", response_class=HTMLResponse)
@@ -55,17 +81,69 @@ def board(request: Request):
 
 @app.post("/tasks/{task_id}/status")
 def set_status(task_id: int, status: str = Form(...)):
-    if status not in STATUSES:
-        raise HTTPException(400, f"status must be one of {STATUSES}")
+    """Select-menu fallback on the board; drag-and-drop uses PATCH /api/tasks/{id}."""
     with db.session() as s:
         task = s.get(db.Task, task_id)
         if not task:
             raise HTTPException(404, "no such task")
-        task.status = status
-        task.updated_at = db.now()
+        _apply(task, {"status": status})
         s.add(task)
         s.commit()
     return RedirectResponse("/", status_code=303)
+
+
+@app.get("/tasks/{task_id}", response_class=HTMLResponse)
+def task_page(request: Request, task_id: int):
+    with db.session() as s:
+        task = s.get(db.Task, task_id)
+        if not task:
+            raise HTTPException(404, "no such task")
+        comments = s.exec(
+            select(db.Comment).where(db.Comment.task_id == task_id).order_by(db.Comment.created_at)
+        ).all()
+    body, quotes = split_detail(task.detail)
+    return templates.TemplateResponse("task.html", {
+        "request": request, "tab": "tasks", "t": task, "body": body, "quotes": quotes,
+        "comments": comments, "statuses": STATUSES,
+    })
+
+
+@app.post("/tasks/{task_id}")
+def task_update(
+    task_id: int,
+    title: str = Form(...),
+    detail: str = Form(""),
+    owner: str = Form("unassigned"),
+    priority: str = Form("normal"),
+    due: str = Form(""),
+    status: str = Form("open"),
+):
+    with db.session() as s:
+        task = s.get(db.Task, task_id)
+        if not task:
+            raise HTTPException(404, "no such task")
+        # Keep the extractor's quote lines; the form only edits the free-text body.
+        _, quotes = split_detail(task.detail)
+        merged = detail.strip() + ("\n\n" + "\n".join("> " + q for q in quotes) if quotes else "")
+        _apply(task, {"title": title, "detail": merged, "owner": owner, "priority": priority, "due": due, "status": status})
+        s.add(task)
+        s.commit()
+    return RedirectResponse(f"/tasks/{task_id}", status_code=303)
+
+
+@app.post("/tasks/{task_id}/comments")
+def add_comment(task_id: int, author: str = Form(...), body: str = Form(...)):
+    if not body.strip():
+        return RedirectResponse(f"/tasks/{task_id}", status_code=303)
+    with db.session() as s:
+        if not s.get(db.Task, task_id):
+            raise HTTPException(404, "no such task")
+        s.add(db.Comment(task_id=task_id, author=author.strip() or "someone", body=body.strip()))
+        task = s.get(db.Task, task_id)
+        task.updated_at = db.now()
+        s.add(task)
+        s.commit()
+    return RedirectResponse(f"/tasks/{task_id}", status_code=303)
 
 
 # ---------- api ----------
@@ -91,6 +169,29 @@ def list_tasks(status: Optional[str] = None, owner: Optional[str] = None):
             q = q.where(db.Task.owner == owner)
         tasks = s.exec(q.order_by(db.Task.updated_at.desc())).all()
     return {"count": len(tasks), "tasks": [t.model_dump() for t in tasks]}
+
+
+class TaskPatch(BaseModel):
+    title: Optional[str] = None
+    detail: Optional[str] = None
+    owner: Optional[str] = None
+    priority: Optional[str] = None
+    due: Optional[str] = None
+    status: Optional[str] = None
+    tags: Optional[str] = None
+
+
+@app.patch("/api/tasks/{task_id}")
+def patch_task(task_id: int, payload: TaskPatch):
+    with db.session() as s:
+        task = s.get(db.Task, task_id)
+        if not task:
+            raise HTTPException(404, "no such task")
+        _apply(task, payload.model_dump(exclude_none=True))
+        s.add(task)
+        s.commit()
+        s.refresh(task)
+    return task.model_dump()
 
 
 @app.post("/api/tasks", status_code=201)
