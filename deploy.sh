@@ -16,7 +16,7 @@ case "${1:-}" in
 esac
 
 echo "→ syncing"
-tar czf - --exclude .git --exclude .venv --exclude '*.db' --exclude .env --exclude transcripts \
+COPYFILE_DISABLE=1 tar czf - --no-xattrs --exclude .git --exclude .venv --exclude '*.db' --exclude .env --exclude transcripts \
           --exclude __pycache__ --exclude .DS_Store . \
   | "${SSH[@]}" --command='rm -rf ~/cc-stage && mkdir -p ~/cc-stage && tar xzf - -C ~/cc-stage'
 
