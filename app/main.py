@@ -242,6 +242,17 @@ def create_task(payload: TaskIn):
 
 # ---------- ingest ----------
 
+def read_transcript(filename: str, data: bytes) -> str:
+    """Plain text from an upload. Gemini and Google Docs export .docx, so that is handled;
+    anything else is treated as text."""
+    if filename.lower().endswith(".docx"):
+        import io
+        from docx import Document
+        doc = Document(io.BytesIO(data))
+        return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+    return data.decode("utf-8", errors="replace")
+
+
 def _commit_meeting(title: str, transcript: str, occurred_at: Optional[str], found: list[dict]) -> dict:
     """Write a meeting source and its extracted tasks. Used by both the API and the UI."""
     with db.session() as s:
@@ -277,7 +288,8 @@ async def ingest_upload(
     transcript: UploadFile = File(...),
 ):
     """Upload a transcript, run extraction, show the result. Writes nothing."""
-    raw = (await transcript.read()).decode("utf-8", errors="replace")
+    data = await transcript.read()
+    raw = read_transcript(transcript.filename or "", data)
     who = [p.strip() for p in participants.split(",") if p.strip()]
     ctx = {"request": request, "tab": "ingest", "preview": None, "error": None}
     if not raw.strip():

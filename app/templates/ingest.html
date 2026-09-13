@@ -74,7 +74,7 @@
     <label>Participants <input type="text" name="participants" placeholder="Steve, Matt"></label>
     <label>Date <input type="date" name="date"></label>
   </div>
-  <label>Transcript <input type="file" name="transcript" accept=".txt,.md,.vtt,.srt,text/plain" required></label>
+  <label>Transcript <span class="hint" style="font-weight:400">— .txt, .vtt, .srt or a Gemini/Google Docs .docx</span> <input type="file" name="transcript" accept=".txt,.md,.vtt,.srt,.docx,text/plain,application/vnd.openxmlformats-officedocument.wordprocessingml.document" required></label>
   <div class="actions">
     <button class="btn" type="submit">Preview tasks</button>
     <span class="hint">Nothing is written until you confirm on the next screen.</span>
