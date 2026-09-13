@@ -22,6 +22,15 @@ def now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(index=True, unique=True)
+    name: str
+    password_hash: Optional[str] = None   # None = cannot log in to the UI yet
+    api_key_hash: Optional[str] = None    # sha256 of the key; the key itself is shown once
+    created_at: datetime = Field(default_factory=now)
+
+
 class Task(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     title: str
@@ -33,6 +42,8 @@ class Task(SQLModel, table=True):
     tags: str = ""                # comma separated
     source: str = "manual"        # manual | meeting | slack
     source_ref: str = ""          # meeting title, slack permalink, etc.
+    created_by: str = ""          # user name, "extractor", or "claude"
+    archived_at: Optional[datetime] = None   # soft delete; nothing is hard-deleted via the API
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
 
@@ -68,6 +79,23 @@ engine = create_engine(_url(), echo=False, pool_pre_ping=True)
 
 def init() -> None:
     SQLModel.metadata.create_all(engine)
+    _add_missing_columns()
+
+
+def _add_missing_columns() -> None:
+    """create_all never alters existing tables. Add any column the models have
+    that the live table lacks — enough for a small app without a migration tool."""
+    from sqlalchemy import inspect, text
+    insp = inspect(engine)
+    with engine.begin() as conn:
+        for model in (User, Task, Comment, ChatMessage, Source):
+            table = model.__tablename__
+            have = {c["name"] for c in insp.get_columns(table)}
+            for col in model.__table__.columns:
+                if col.name in have:
+                    continue
+                ctype = col.type.compile(engine.dialect)
+                conn.execute(text(f'ALTER TABLE "{table}" ADD COLUMN "{col.name}" {ctype}'))
 
 
 def session() -> Session:

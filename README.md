@@ -9,18 +9,45 @@ Internal tooling for the Klaviyo-migration venture. Meetings and Slack go in; ta
 - **Ask Claude** — an assistant with tools over the board: list, read, search the transcripts;
   create, update and comment only when asked, always attributed to Claude
 - **Settings** — which credential the SDK will use, a connection test, a profile picker
-- A JSON API at `/api/tasks` (list, create, PATCH) and `/api/ingest/meeting`
+- **An API** covering all of it, documented live at `/docs`
 
 ## Run it locally
 
 ```bash
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env      # set INGEST_TOKEN; leave ANTHROPIC_API_KEY empty to use a profile
+cp .env.example .env      # leave ANTHROPIC_API_KEY empty to use a profile
 uvicorn app.main:app --reload
 ```
 
 With no `DATABASE_URL` it uses a local SQLite file, so there is nothing else to set up.
+
+## Users and the API
+
+Two ways in, both resolving to the same user: a session from `/login`, or an API key as
+`Authorization: Bearer <key>`. Everything except `/login` and `/healthz` requires one.
+
+```bash
+scripts/user.py add design@stevenmansfield.com --name Steve   # prompts for a password
+scripts/user.py add mmenashe@mrosupply.com --name Matt
+scripts/user.py key design@stevenmansfield.com                 # mints an API key, shown once
+scripts/user.py list
+```
+
+Run those yourself — passwords are typed at the prompt and keys print to your terminal only.
+
+The API is documented at `/docs` (interactive) and `/openapi.json`. Tasks: list, create,
+get, patch (title, detail, owner, priority, due, status, tags), delete, restore. Comments:
+list, add, delete your own. Sources: list, get, ingest. Ask: thread, send, clear. Me: who am I,
+who else is here.
+
+**Delete archives.** `DELETE /api/tasks/{id}` hides a task from the board and sets
+`archived_at`; `POST /api/tasks/{id}/restore` brings it back; `?include_archived=true` lists
+them. Nothing is hard-deleted through the API. Comments are the one exception — small, yours,
+and a real delete, limited to your own.
+
+Every write records who did it: `created_by` on tasks, `author` on comments, and tasks the
+extractor creates say `extractor via <user>`.
 
 ## Signing in with your local Claude
 
@@ -47,12 +74,13 @@ already carries the start command.
 
 ## Ingesting a meeting
 
-Preview first — this is the default, and it exists so a bad extraction never quietly fills
-the board:
+The Ingest tab takes a `.txt`, `.vtt`, `.srt` or Gemini/Google Docs `.docx`. Preview first —
+this is the default, and it exists so a bad extraction never quietly fills the board. Same
+over the API:
 
 ```bash
 curl -s https://HOST/api/ingest/meeting \
-  -H "X-Ingest-Token: $INGEST_TOKEN" -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $CC_KEY" -H 'Content-Type: application/json' \
   -d '{"title":"Sat 12 Sep planning","participants":["Steve","Matt"],
        "transcript":"...", "commit":false}' | jq
 ```
@@ -70,9 +98,8 @@ event handler is not written yet.
 
 ## What is deliberately not here
 
-No authentication on the board — it is unlisted, not secure, and should not hold anything
-sensitive until that changes. No agent fleet. No email ingestion. No Slack event handler.
-Those come after the first working demo.
+No agent fleet. No email ingestion. No Slack event handler. Those come after the first
+working demo.
 
 ## House rule
 

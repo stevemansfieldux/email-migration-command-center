@@ -4,7 +4,7 @@
     scripts/ingest_meeting.py transcript.txt --title "Sat 12 Sep planning" --who Steve Matt
     scripts/ingest_meeting.py transcript.txt --title "..." --who Steve Matt --commit
 
-Reads HOST and INGEST_TOKEN from the environment (or a .env alongside this repo).
+Reads HOST and CC_KEY (an API key from scripts/user.py key) from the environment (or a .env alongside this repo).
 """
 import argparse
 import json
@@ -35,9 +35,9 @@ def main() -> int:
     ap.add_argument("--host", default=os.environ.get("HOST", "http://127.0.0.1:8000"))
     a = ap.parse_args()
 
-    token = os.environ.get("INGEST_TOKEN", "")
+    token = os.environ.get("CC_KEY", "")
     if not token:
-        print("INGEST_TOKEN is not set", file=sys.stderr)
+        print("CC_KEY is not set — mint one with scripts/user.py key <email>", file=sys.stderr)
         return 2
 
     body = {
@@ -50,7 +50,7 @@ def main() -> int:
     r = httpx.post(
         f"{a.host.rstrip('/')}/api/ingest/meeting",
         json=body,
-        headers={"X-Ingest-Token": token},
+        headers={"Authorization": f"Bearer {token}"},
         timeout=180,
     )
     if r.status_code != 200:

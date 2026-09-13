@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Sign in — Command Centre{% endblock %}
+{% block main %}
+<style>
+  .login{max-width:360px;display:flex;flex-direction:column;gap:14px;margin-top:10px}
+  .login input[type=password]{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--ink)}
+</style>
+{% if error %}<div class="note bad" style="max-width:360px;margin-bottom:16px">{{ error }}</div>{% endif %}
+<form method="post" action="/login" class="login">
+  <input type="hidden" name="next" value="{{ next }}">
+  <label>Email <input type="text" name="email" autocomplete="username" required autofocus></label>
+  <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
+  <div><button class="btn" type="submit">Sign in</button></div>
+</form>
+{% endblock %}

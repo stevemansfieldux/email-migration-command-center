@@ -14,8 +14,11 @@ worklogs or ops-hub.
 
 ## Conventions
 
-- Ingest endpoints require `X-Ingest-Token`. If `INGEST_TOKEN` is unset the endpoint returns
-  503 rather than running unauthenticated — a missing secret must fail closed.
+- Every route except `/login` and `/healthz` requires a user — session or bearer key. Page
+  routes redirect to `/login`; API routes return 401 JSON. Never add an unauthenticated route.
+- Deleting a task archives it. Do not add a hard-delete endpoint.
+- Passwords and API keys are set through `scripts/user.py`, run by the person themselves.
+  Never print a password or a freshly-minted key anywhere but that terminal.
 - Extraction previews by default. Anything that writes to the board takes an explicit
   `commit: true`.
 - Every extracted task keeps the verbatim quote it came from. Traceability is the point; a

@@ -44,18 +44,37 @@
     <label>Status
       <select name="status">{% for s in statuses %}<option value="{{ s }}" {% if s == t.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
     </label>
-    <label>Owner <input type="text" name="owner" value="{{ t.owner }}"></label>
+    <label>Owner
+      <select name="owner">
+        <option value="unassigned" {% if t.owner == 'unassigned' %}selected{% endif %}>unassigned</option>
+        {% for o in owners %}<option value="{{ o }}" {% if o == t.owner %}selected{% endif %}>{{ o }}</option>{% endfor %}
+        {% if t.owner != 'unassigned' and t.owner not in owners %}<option value="{{ t.owner }}" selected>{{ t.owner }}</option>{% endif %}
+      </select>
+    </label>
     <label>Priority
-      <select name="priority">{% for p in ['low','normal','high'] %}<option value="{{ p }}" {% if p == t.priority %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+      <select name="priority">{% for p in priorities %}<option value="{{ p }}" {% if p == t.priority %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
     </label>
     <label>Due <input type="date" name="due" value="{{ t.due or '' }}"></label>
     <div class="src">
       <span>source: {{ t.source }}</span>
       {% if t.source_ref %}<span>{{ t.source_ref }}</span>{% endif %}
+      {% if t.created_by %}<span>by {{ t.created_by }}</span>{% endif %}
       <span>created {{ t.created_at.strftime('%d %b %Y') }}</span>
     </div>
   </aside>
 </form>
+<div style="max-width:820px;margin-top:14px">
+  {% if t.archived_at %}
+  <div class="note" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <span>Archived {{ t.archived_at.strftime('%d %b %H:%M') }} — hidden from the board, nothing lost.</span>
+    <form method="post" action="/tasks/{{ t.id }}/restore"><button class="btn quiet" type="submit">Restore</button></form>
+  </div>
+  {% else %}
+  <form method="post" action="/tasks/{{ t.id }}/archive" onsubmit="return confirm('Archive this task? It leaves the board but can be restored.')">
+    <button class="btn quiet" type="submit" style="font-size:12px;padding:5px 10px">Archive</button>
+  </form>
+  {% endif %}
+</div>
 
 <section class="comments">
   <h2>Comments · {{ comments|length }}</h2>
@@ -68,10 +87,7 @@
   <div class="empty">No comments yet.</div>
   {% endfor %}
   <form method="post" action="/tasks/{{ t.id }}/comments" class="add">
-    <div class="row">
-      <label>Name <input type="text" name="author" required placeholder="Steve"></label>
-    </div>
-    <label>Comment <textarea name="body" required placeholder="What changed, what's blocking, what was decided…"></textarea></label>
+    <label>Comment as {{ user.name }} <textarea name="body" required placeholder="What changed, what's blocking, what was decided…"></textarea></label>
     <div><button class="btn" type="submit">Add comment</button></div>
   </form>
 </section>
