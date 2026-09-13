@@ -1,0 +1,5 @@
+# Auto-TLS on the sslip.io name until a real domain exists. Swap the host line then.
+34.89.78.186.sslip.io {
+	encode gzip
+	reverse_proxy 127.0.0.1:8000
+}
