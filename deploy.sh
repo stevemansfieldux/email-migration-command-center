@@ -27,6 +27,9 @@ case "${1:-}" in
     exit ;;
 esac
 
+echo "→ checking"
+.venv/bin/python scripts/check.py || { echo "not deploying a broken build"; exit 1; }
+
 echo "→ syncing"
 COPYFILE_DISABLE=1 tar czf - --no-xattrs --exclude .git --exclude .venv --exclude '*.db' --exclude .env --exclude transcripts \
           --exclude __pycache__ --exclude .DS_Store . \
