@@ -5,14 +5,23 @@
 #   ./deploy.sh            # sync + install + restart
 #   ./deploy.sh --logs     # tail the service
 #   ./deploy.sh --ssh      # shell on the box
+#   ./deploy.sh --setup    # first run: create both users + Steve's API key (you type, on the box)
+#   ./deploy.sh --env NAME # set one env var on the box (prompts, hidden) and restart
 set -euo pipefail
 P=steve-command-center; Z=europe-west2-a; H=cc
 SSH=(gcloud compute ssh "$H" --project="$P" --zone="$Z" --quiet)
 cd "$(dirname "$0")"
 
 case "${1:-}" in
-  --logs) exec "${SSH[@]}" --command='sudo journalctl -u cc -n 80 --no-pager -f' ;;
-  --ssh)  exec "${SSH[@]}" ;;
+  --logs)  exec "${SSH[@]}" --command='sudo journalctl -u cc -n 80 --no-pager -f' ;;
+  --ssh)   exec "${SSH[@]}" ;;
+  --setup) exec "${SSH[@]}" --ssh-flag=-t --command='sudo -u cc bash -c "cd /srv/cc/app && .venv/bin/python scripts/user.py setup"' ;;
+  --env)
+    name="${2:?usage: ./deploy.sh --env NAME}"
+    read -r -s -p "$name: " value; echo
+    [ -n "$value" ] || { echo "empty, nothing written"; exit 1; }
+    printf '%s' "$value" | "${SSH[@]}" --command="sudo -u cc bash -c 'v=\$(cat); f=/srv/cc/app/.env; touch \$f; grep -v "^$name=" \$f > \$f.tmp || true; printf "%s=%s\\n" "$name" "\$v" >> \$f.tmp; mv \$f.tmp \$f; chmod 600 \$f' && sudo systemctl restart cc && echo "$name set, service restarted""
+    exit ;;
 esac
 
 echo "→ syncing"

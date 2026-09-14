@@ -5,6 +5,7 @@
     scripts/user.py password <email>                          # reset it
     scripts/user.py key <email>                               # mint an API key (shown once)
     scripts/user.py list
+    scripts/user.py setup                                     # first-run: both users + Steve's key, one go
 """
 import argparse
 import getpass
@@ -32,9 +33,12 @@ def main() -> int:
     p = sub.add_parser("password"); p.add_argument("email")
     k = sub.add_parser("key"); k.add_argument("email")
     sub.add_parser("list")
+    sub.add_parser("setup")
     args = ap.parse_args()
 
     db.init()
+    if args.cmd == "setup":
+        return setup()
     with db.session() as s:
         if args.cmd == "list":
             for u in s.exec(select(db.User).order_by(db.User.id)).all():
@@ -67,6 +71,27 @@ def main() -> int:
             print(f"  {key}\n")
             print(f'  curl -H "Authorization: Bearer {key}" http://localhost:8000/api/me')
             return 0
+    return 0
+
+
+def setup() -> int:
+    """First run on a fresh database: both users, then an API key for Steve."""
+    people = [("design@stevenmansfield.com", "Steve"), ("mmenashe@mrosupply.com", "Matt")]
+    with db.session() as s:
+        for email, name in people:
+            if s.exec(select(db.User).where(db.User.email == email)).first():
+                print(f"{name} already exists, skipping"); continue
+            print(f"\nSet a password for {name} ({email})")
+            s.add(db.User(email=email, name=name, password_hash=auth.hash_password(_prompt_password())))
+            s.commit(); print(f"added {name}")
+        steve = s.exec(select(db.User).where(db.User.email == people[0][0])).first()
+        if steve.api_key_hash:
+            print("\nSteve already has an API key — not replacing it (use `key` to rotate).")
+        else:
+            key, h = auth.new_api_key(); steve.api_key_hash = h; s.add(steve); s.commit()
+            print("\nSteve's API key — shown once, store it now:\n")
+            print(f"  {key}\n")
+    print("done.")
     return 0
 
 
