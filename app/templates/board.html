@@ -1,49 +1,82 @@
 {% extends "base.html" %}
-{% block title %}Tasks — Command Centre{% endblock %}
-{% block headright %}<span class="count">{{ total }} task{{ '' if total == 1 else 's' }}</span>{% endblock %}
+{% block title %}Tasks — EMCC{% endblock %}
+{% block headright %}<span class="count">{{ total }} task{{ '' if total == 1 else 's' }}{% if tag %} · #{{ tag }} <a href="/" class="mono" style="color:var(--accent)">×</a>{% endif %}</span>{% endblock %}
 {% block main %}
 <style>
+  .sugg{margin-bottom:26px;display:flex;flex-direction:column;gap:8px}
+  .sugg .row{background:var(--card);border:1px dashed var(--line);border-radius:6px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:start}
+  .sugg .t{font-size:14px;font-weight:600}
+  .sugg .q{font-size:12.5px;color:var(--dim);font-style:italic;border-left:2px solid var(--line);padding-left:8px;margin-top:4px}
+  .sugg .m{font:11px ui-monospace,Menlo,monospace;color:var(--dim);margin-top:5px;display:flex;gap:10px;flex-wrap:wrap}
+  .sugg .dup{color:var(--blocked)}
+  .sugg .acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  .sugg .acts form{display:inline-flex;gap:6px;align-items:center}
+  .sugg select{font:11px ui-monospace,Menlo,monospace;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:3px 5px}
+  .sugg .acts button{padding:5px 10px;font-size:12px;border-radius:4px;cursor:pointer}
   .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
   .col{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:140px;border-radius:8px;padding:2px;transition:background .12s}
   .col.over{background:color-mix(in srgb,var(--accent) 10%,transparent)}
   .colhead{display:flex;align-items:center;gap:7px;padding:0 2px 4px}
   .colname{font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
   .task{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:11px 12px;display:flex;flex-direction:column;gap:6px;cursor:grab}
-  .task:active{cursor:grabbing}
-  .task.dragging{opacity:.45}
-  .task.sample{border-style:dashed}
+  .task:active{cursor:grabbing} .task.dragging{opacity:.45} .task.sample{border-style:dashed}
   .title{font-size:14px;font-weight:600;letter-spacing:-.005em;overflow-wrap:anywhere}
-  .title a{color:inherit;text-decoration:none}
-  .title a:hover{text-decoration:underline}
-  .title a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
-  .detail{font-size:12.5px;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere}
-  .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font:11px ui-monospace,Menlo,monospace;color:var(--dim)}
+  .title a{color:inherit;text-decoration:none} .title a:hover{text-decoration:underline}
+  .detail{font-size:12.5px;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font:11px ui-monospace,Menlo,monospace;color:var(--dim);align-items:center}
   .hi{color:var(--blocked)}
+  .prog{font:11px ui-monospace,Menlo,monospace;color:var(--done)}
   .task select{font:11px ui-monospace,Menlo,monospace;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:2px 4px}
   .empty{font-size:13px;color:var(--dim);padding:10px 2px}
   @media (prefers-reduced-motion:reduce){.col{transition:none}}
 </style>
+
+{% if suggestions %}
+<p class="sec">Suggested for you · {{ suggestions|length }}</p>
+<div class="sugg">
+  {% for t in suggestions %}
+  <div class="row">
+    <div>
+      <div class="t"><a href="/tasks/{{ t.id }}" style="color:inherit;text-decoration:none">{{ t.title }}</a></div>
+      {% set parts = t.detail.split('\n\n> ') %}
+      {% if parts|length > 1 %}<div class="q">{{ parts[1] }}</div>{% endif %}
+      <div class="m">
+        <span>for {{ t.suggested_owner }}</span><span>{{ t.priority }}</span>{% if t.due %}<span>due {{ t.due }}</span>{% endif %}
+        <span>{{ t.source_ref }}</span>
+        {% if t.dup_of %}<span class="dup">⚠ may duplicate #{{ t.dup_of }} {{ dup_titles.get(t.dup_of, '') }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="acts">
+      <form method="post" action="/suggestions/{{ t.id }}/accept">
+        <select name="owner" aria-label="owner"><option value="">{{ t.suggested_owner if t.suggested_owner != 'unassigned' else 'unassigned' }}</option>{% for o in ['Steve','Matt','unassigned'] %}{% if o != t.suggested_owner %}<option value="{{ o }}">{{ o }}</option>{% endif %}{% endfor %}</select>
+        <button class="btn" type="submit">Accept</button>
+      </form>
+      <form method="post" action="/suggestions/{{ t.id }}/hide"><button class="btn quiet" type="submit" title="Hide for me; the other person still sees it">Not mine</button></form>
+      <form method="post" action="/suggestions/{{ t.id }}/dismiss"><button class="btn quiet" type="submit" style="color:var(--dim)">Dismiss</button></form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div class="cols">
   {% for st in statuses %}
   <div class="col" data-status="{{ st }}">
-    <div class="colhead">
-      <span class="dot" style="background:var(--{{ st }})"></span>
-      <span class="colname">{{ st }} · <span class="n">{{ columns[st]|length }}</span></span>
-    </div>
+    <div class="colhead"><span class="dot" style="background:var(--{{ st }})"></span><span class="colname">{{ st }} · <span class="n">{{ columns[st]|length }}</span></span></div>
     {% for t in columns[st] %}
     <div class="task {{ 'sample' if t.source == 'sample' else '' }}" draggable="true" data-id="{{ t.id }}">
       <div class="title"><a href="/tasks/{{ t.id }}">{{ t.title }}</a></div>
-      {% if t.detail %}<div class="detail">{{ t.detail }}</div>{% endif %}
+      {% set body = t.detail.split('\n\n> ')[0] %}
+      {% if body %}<div class="detail">{{ body }}</div>{% endif %}
       <div class="meta">
         <span>{{ t.owner }}</span>
         {% if t.priority == 'high' %}<span class="hi">high</span>{% endif %}
         {% if t.due %}<span>due {{ t.due }}</span>{% endif %}
-        <span>{{ t.source }}</span>
+        {% if ms[t.id][1] %}<span class="prog">{{ ms[t.id][0] }}/{{ ms[t.id][1] }}</span>{% endif %}
+        {% for tg in tags[t.id] %}<a class="chip" href="/?tag={{ tg }}">#{{ tg }}</a>{% endfor %}
       </div>
       <form method="post" action="/tasks/{{ t.id }}/status">
-        <select name="status" onchange="this.form.submit()" aria-label="status">
-          {% for s in statuses %}<option value="{{ s }}" {% if s == t.status %}selected{% endif %}>{{ s }}</option>{% endfor %}
-        </select>
+        <select name="status" onchange="this.form.submit()" aria-label="status">{% for s in statuses %}<option value="{{ s }}" {% if s == t.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
       </form>
     </div>
     {% endfor %}
@@ -54,11 +87,7 @@
 <script>
 (() => {
   let dragged = null;
-  const recount = () => document.querySelectorAll('.col').forEach(c => {
-    const n = c.querySelectorAll('.task').length;
-    c.querySelector('.n').textContent = n;
-    c.querySelector('.empty').hidden = n > 0;
-  });
+  const recount = () => document.querySelectorAll('.col').forEach(c => { const n = c.querySelectorAll('.task').length; c.querySelector('.n').textContent = n; c.querySelector('.empty').hidden = n > 0; });
   document.querySelectorAll('.task').forEach(el => {
     el.addEventListener('dragstart', e => { dragged = el; el.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
     el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragged = null; document.querySelectorAll('.col.over').forEach(c => c.classList.remove('over')); });
@@ -67,15 +96,11 @@
     col.addEventListener('dragover', e => { if (!dragged) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; col.classList.add('over'); });
     col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('over'); });
     col.addEventListener('drop', async e => {
-      e.preventDefault(); col.classList.remove('over');
-      if (!dragged) return;
-      const status = col.dataset.status, id = dragged.dataset.id, from = dragged.parentElement;
-      if (from === col) return;
-      col.insertBefore(dragged, col.querySelector('.empty'));
-      dragged.querySelector('select').value = status;
-      recount();
+      e.preventDefault(); col.classList.remove('over'); if (!dragged) return;
+      const status = col.dataset.status, id = dragged.dataset.id, from = dragged.parentElement; if (from === col) return;
+      col.insertBefore(dragged, col.querySelector('.empty')); dragged.querySelector('select').value = status; recount();
       const r = await fetch(`/api/tasks/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
-      if (!r.ok) { from.insertBefore(dragged, from.querySelector('.empty')); recount(); alert('Could not move that task — reloading.'); location.reload(); }
+      if (!r.ok) { from.insertBefore(dragged, from.querySelector('.empty')); recount(); location.reload(); }
     });
   });
 })();

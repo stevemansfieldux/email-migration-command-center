@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ path }} — EMCC{% endblock %}
+{% block headright %}<a class="mono" href="/meetings" style="padding-bottom:14px;text-decoration:none;color:var(--dim)">← meetings</a>{% endblock %}
+{% block main %}
+<style>pre.doc{max-width:860px;white-space:pre-wrap;overflow-wrap:anywhere;font:13.5px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px 18px;margin:0}</style>
+<p class="sec">{{ path }}</p>
+<pre class="doc">{{ text }}</pre>
+{% endblock %}

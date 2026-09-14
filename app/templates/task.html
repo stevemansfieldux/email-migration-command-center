@@ -1,94 +1,111 @@
 {% extends "base.html" %}
-{% block title %}{{ t.title }} — Command Centre{% endblock %}
+{% block title %}{{ t.title }} — EMCC{% endblock %}
 {% block headright %}<a class="mono" href="/" style="padding-bottom:14px;text-decoration:none;color:var(--dim)">← all tasks</a>{% endblock %}
 {% block main %}
 <style>
-  .layout{display:grid;grid-template-columns:1fr;gap:26px;max-width:820px}
+  .layout{display:grid;grid-template-columns:1fr;gap:26px;max-width:860px}
   @media (min-width:900px){.layout{grid-template-columns:minmax(0,1fr) 280px}}
   .edit{display:flex;flex-direction:column;gap:12px}
   .edit .title{font-size:20px;font-weight:600;letter-spacing:-.015em;padding:6px 0;border:0;border-bottom:1px solid transparent;background:transparent;color:var(--ink);width:100%}
   .edit .title:focus{outline:none;border-bottom-color:var(--accent)}
-  textarea{width:100%;min-height:110px;padding:9px 10px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--ink);resize:vertical;line-height:1.5}
+  textarea{width:100%;min-height:100px;padding:9px 10px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--ink);resize:vertical;line-height:1.5}
   .quote{border-left:2px solid var(--accent);padding:6px 12px;font-style:italic;color:var(--dim);font-size:13.5px;background:var(--card);border-radius:0 5px 5px 0}
   .qlabel{font:10px ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
   .side{display:flex;flex-direction:column;gap:12px}
   .side select,.side input{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--ink)}
   .src{font-size:12px;color:var(--dim);border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:3px}
-  .comments{margin-top:34px;max-width:820px;display:flex;flex-direction:column;gap:12px}
-  .comments h2{margin:0;font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
+  .src a{color:var(--accent)}
+  .block{margin-top:30px;max-width:860px;display:flex;flex-direction:column;gap:10px}
+  .block h2{margin:0;font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
+  .tagrow{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .tagrow form{display:inline-flex;gap:4px;align-items:center}
+  .tagrow input{padding:4px 8px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:12px;width:130px}
+  .tagrow .x{background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;padding:0 2px}
+  .mile{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .mile.done .txt{text-decoration:line-through;color:var(--dim)}
+  .mile form{margin:0} .mile .tick{width:16px;height:16px;border:1.5px solid var(--dim);border-radius:3px;background:transparent;cursor:pointer;padding:0}
+  .mile.done .tick{background:var(--done);border-color:var(--done)}
+  .mile .txt{flex:1} .mile .del{background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px}
+  .addm{display:flex;gap:8px} .addm input{flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--ink)}
   .c{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
   .c .who{font:11px ui-monospace,Menlo,monospace;color:var(--dim);display:flex;gap:10px}
   .c .body{font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
-  .add{display:grid;grid-template-columns:1fr;gap:10px;margin-top:6px}
-  .add .row{display:grid;grid-template-columns:180px 1fr;gap:10px;align-items:end}
   .add textarea{min-height:72px}
   .empty{font-size:13px;color:var(--dim)}
 </style>
 
+{% if t.status == 'suggested' %}
+<div class="note" style="max-width:860px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+  <span>This is a <strong>suggestion</strong> from {{ t.source_ref }} — suggested for {{ t.suggested_owner }}. It isn't on the board until someone accepts it.{% if dup %} <span style="color:var(--blocked)">The extractor thinks it may duplicate <a href="/tasks/{{ dup.id }}">#{{ dup.id }} {{ dup.title }}</a>.</span>{% endif %}</span>
+  <span style="display:flex;gap:6px">
+    <form method="post" action="/suggestions/{{ t.id }}/accept"><button class="btn" type="submit">Accept</button></form>
+    <form method="post" action="/suggestions/{{ t.id }}/dismiss"><button class="btn quiet" type="submit">Dismiss</button></form>
+  </span>
+</div>
+{% elif t.status == 'dismissed' %}
+<div class="note" style="max-width:860px;margin-bottom:16px">Dismissed suggestion. Change the status below to bring it onto the board.</div>
+{% endif %}
+
 <form method="post" action="/tasks/{{ t.id }}" class="layout">
   <div class="edit">
     <input class="title" type="text" name="title" value="{{ t.title }}" required aria-label="title">
-    {% if quotes %}
-    <div>
-      <div class="qlabel">From the source</div>
-      {% for q in quotes %}<div class="quote">{{ q }}</div>{% endfor %}
-    </div>
-    {% endif %}
+    {% if quotes %}<div><div class="qlabel">From the source</div>{% for q in quotes %}<div class="quote">{{ q }}</div>{% endfor %}</div>{% endif %}
     <label>Detail<textarea name="detail">{{ body }}</textarea></label>
-    <div style="display:flex;gap:10px;align-items:center">
-      <button class="btn" type="submit">Save</button>
-      <span class="mono">updated {{ t.updated_at.strftime('%d %b %H:%M') }}</span>
-    </div>
+    <div style="display:flex;gap:10px;align-items:center"><button class="btn" type="submit">Save</button><span class="mono">updated {{ t.updated_at.strftime('%d %b %H:%M') }}</span></div>
   </div>
   <aside class="side">
-    <label>Status
-      <select name="status">{% for s in statuses %}<option value="{{ s }}" {% if s == t.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
-    </label>
-    <label>Owner
-      <select name="owner">
-        <option value="unassigned" {% if t.owner == 'unassigned' %}selected{% endif %}>unassigned</option>
-        {% for o in owners %}<option value="{{ o }}" {% if o == t.owner %}selected{% endif %}>{{ o }}</option>{% endfor %}
-        {% if t.owner != 'unassigned' and t.owner not in owners %}<option value="{{ t.owner }}" selected>{{ t.owner }}</option>{% endif %}
-      </select>
-    </label>
-    <label>Priority
-      <select name="priority">{% for p in priorities %}<option value="{{ p }}" {% if p == t.priority %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
-    </label>
+    <label>Status<select name="status">{% for s in statuses %}<option value="{{ s }}" {% if s == t.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+    <label>Owner<select name="owner">
+      <option value="unassigned" {% if t.owner in ('', 'unassigned') %}selected{% endif %}>unassigned</option>
+      {% for o in owners %}<option value="{{ o }}" {% if o == t.owner %}selected{% endif %}>{{ o }}</option>{% endfor %}
+    </select></label>
+    <label>Priority<select name="priority">{% for p in priorities %}<option value="{{ p }}" {% if p == t.priority %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></label>
     <label>Due <input type="date" name="due" value="{{ t.due or '' }}"></label>
     <div class="src">
       <span>source: {{ t.source }}</span>
-      {% if t.source_ref %}<span>{{ t.source_ref }}</span>{% endif %}
+      {% if t.source_meeting %}<a href="/meetings/view/{{ t.source_meeting }}">{{ t.source_meeting }}</a>{% elif t.source_ref %}<span>{{ t.source_ref }}</span>{% endif %}
       {% if t.created_by %}<span>by {{ t.created_by }}</span>{% endif %}
       <span>created {{ t.created_at.strftime('%d %b %Y') }}</span>
     </div>
   </aside>
 </form>
-<div style="max-width:820px;margin-top:14px">
-  {% if t.archived_at %}
-  <div class="note" style="display:flex;justify-content:space-between;align-items:center;gap:12px">
-    <span>Archived {{ t.archived_at.strftime('%d %b %H:%M') }} — hidden from the board, nothing lost.</span>
-    <form method="post" action="/tasks/{{ t.id }}/restore"><button class="btn quiet" type="submit">Restore</button></form>
-  </div>
-  {% else %}
-  <form method="post" action="/tasks/{{ t.id }}/archive" onsubmit="return confirm('Archive this task? It leaves the board but can be restored.')">
-    <button class="btn quiet" type="submit" style="font-size:12px;padding:5px 10px">Archive</button>
-  </form>
-  {% endif %}
-</div>
 
-<section class="comments">
-  <h2>Comments · {{ comments|length }}</h2>
-  {% for c in comments %}
-  <div class="c">
-    <div class="who"><span>{{ c.author }}</span><span>{{ c.created_at.strftime('%d %b %H:%M') }}</span></div>
-    <div class="body">{{ c.body }}</div>
+<section class="block">
+  <h2>Tags</h2>
+  <div class="tagrow">
+    {% for tg in tags %}<span class="chip">#{{ tg }}<form method="post" action="/tasks/{{ t.id }}/tags/remove" style="display:inline"><input type="hidden" name="tag" value="{{ tg }}"><button class="x" type="submit" aria-label="remove {{ tg }}">×</button></form></span>{% endfor %}
+    <form method="post" action="/tasks/{{ t.id }}/tags"><input type="text" name="tag" list="alltags" placeholder="add tag" aria-label="add tag"><button class="btn quiet" type="submit" style="padding:4px 9px;font-size:12px">Add</button></form>
+    <datalist id="alltags">{% for tg in all_tags %}<option value="{{ tg }}">{% endfor %}</datalist>
   </div>
-  {% else %}
-  <div class="empty">No comments yet.</div>
-  {% endfor %}
+</section>
+
+<section class="block">
+  <h2>Milestones · {{ miles|selectattr('done')|list|length }}/{{ miles|length }}</h2>
+  {% for m in miles %}
+  <div class="mile {{ 'done' if m.done else '' }}">
+    <form method="post" action="/tasks/{{ t.id }}/milestones/{{ m.id }}/toggle"><button class="tick" type="submit" aria-label="toggle"></button></form>
+    <span class="txt">{{ m.text }}</span>
+    <form method="post" action="/tasks/{{ t.id }}/milestones/{{ m.id }}/delete"><button class="del" type="submit" aria-label="delete">×</button></form>
+  </div>
+  {% else %}<div class="empty">No milestones yet.</div>{% endfor %}
+  <form method="post" action="/tasks/{{ t.id }}/milestones" class="addm"><input type="text" name="text" placeholder="Add a milestone" required><button class="btn quiet" type="submit">Add</button></form>
+</section>
+
+<section class="block">
+  <h2>Comments · {{ comments|length }}</h2>
+  {% for c in comments %}<div class="c"><div class="who"><span>{{ c.author }}</span><span>{{ c.created_at.strftime('%d %b %H:%M') }}</span></div><div class="body">{{ c.body }}</div></div>
+  {% else %}<div class="empty">No comments yet.</div>{% endfor %}
   <form method="post" action="/tasks/{{ t.id }}/comments" class="add">
-    <label>Comment as {{ user.name }} <textarea name="body" required placeholder="What changed, what's blocking, what was decided…"></textarea></label>
-    <div><button class="btn" type="submit">Add comment</button></div>
+    <label>Comment as {{ user.name }} <span class="mono" style="font-weight:400">— @Steve or @Matt to notify</span><textarea name="body" required placeholder="What changed, what's blocking, what was decided…"></textarea></label>
+    <div style="margin-top:8px"><button class="btn" type="submit">Add comment</button></div>
   </form>
 </section>
+
+<div class="block" style="margin-top:20px">
+  {% if t.archived_at %}
+  <div class="note" style="display:flex;justify-content:space-between;align-items:center;gap:12px"><span>Archived {{ t.archived_at.strftime('%d %b %H:%M') }} — hidden from the board, nothing lost.</span><form method="post" action="/tasks/{{ t.id }}/restore"><button class="btn quiet" type="submit">Restore</button></form></div>
+  {% else %}
+  <form method="post" action="/tasks/{{ t.id }}/archive" onsubmit="return confirm('Archive this task? It leaves the board but can be restored.')"><button class="btn quiet" type="submit" style="font-size:12px;padding:5px 10px">Archive</button></form>
+  {% endif %}
+</div>
 {% endblock %}

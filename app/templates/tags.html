@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Tags — EMCC{% endblock %}
+{% block main %}
+<style>
+  .tl{max-width:760px;display:flex;flex-direction:column;gap:10px}
+  .tr{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:11px 13px;display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:start}
+  .tr .nm{font-weight:600;display:flex;flex-direction:column;gap:2px} .tr .nm a{color:inherit;text-decoration:none} .tr .nm .n{font:11px ui-monospace,Menlo,monospace;color:var(--dim);font-weight:400}
+  .tr form{display:flex;gap:8px} .tr input{flex:1;padding:6px 9px;border:1px solid var(--line);border-radius:5px;background:var(--page);color:var(--ink);font-size:13px}
+  .empty{font-size:13.5px;color:var(--dim);max-width:600px;line-height:1.6}
+</style>
+{% if items %}
+<div class="tl">
+  {% for i in items %}
+  <div class="tr">
+    <div class="nm"><a href="/?tag={{ i.tag }}">#{{ i.tag }}</a><span class="n">{{ i.count }} task{{ '' if i.count == 1 else 's' }}</span></div>
+    <form method="post" action="/tags/{{ i.tag }}/description"><input type="text" name="description" value="{{ i.description }}" placeholder="What this tag means"><button class="btn quiet" type="submit" style="padding:5px 10px;font-size:12px">Save</button></form>
+  </div>
+  {% endfor %}
+</div>
+{% else %}<div class="empty">No tags yet. Add one on any task and it appears here with a description you can fill in.</div>{% endif %}
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Messages — EMCC{% endblock %}
+{% block headright %}<a class="mono" href="/inbox" style="padding-bottom:14px;text-decoration:none;color:var(--dim)">← inbox</a>{% endblock %}
+{% block main %}
+<style>
+  .th{max-width:760px;display:flex;flex-direction:column;gap:8px}
+  .m{max-width:78%;padding:9px 12px;border-radius:8px;font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--card);border:1px solid var(--line)}
+  .m.me{align-self:flex-end;border-color:var(--accent)}
+  .m .w{font:10px ui-monospace,Menlo,monospace;color:var(--dim);margin-top:4px}
+  .send{max-width:760px;margin-top:14px;display:flex;gap:8px}
+  .send textarea{flex:1;min-height:56px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);resize:vertical}
+  .empty{font-size:13.5px;color:var(--dim)}
+</style>
+<p class="sec">{{ 'With ' + other.name if other else 'No one else here yet' }}</p>
+<div class="th">
+  {% for m in thread %}<div class="m {{ 'me' if m.from_id == user.id else '' }}">{{ m.body }}<div class="w">{{ m.created_at.strftime('%d %b %H:%M') }}</div></div>
+  {% else %}<div class="empty">No messages yet.</div>{% endfor %}
+</div>
+{% if other %}
+<form method="post" action="/messages" class="send"><textarea name="body" required placeholder="Message {{ other.name }}…" onkeydown="if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){this.form.requestSubmit()}"></textarea><button class="btn" type="submit">Send</button></form>
+{% endif %}
+{% endblock %}

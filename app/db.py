@@ -36,16 +36,76 @@ class Task(SQLModel, table=True):
     title: str
     detail: str = ""
     owner: str = "unassigned"
-    status: str = "open"          # open | doing | blocked | done
+    status: str = "open"          # suggested | open | doing | blocked | done | dismissed
     priority: str = "normal"      # low | normal | high
     due: Optional[str] = None     # YYYY-MM-DD
     tags: str = ""                # comma separated
     source: str = "manual"        # manual | meeting | slack
     source_ref: str = ""          # meeting title, slack permalink, etc.
     created_by: str = ""          # user name, "extractor", or "claude"
+    suggested_owner: str = ""     # extractor's guess; becomes owner on accept
+    source_meeting: str = ""      # EMOH path, e.g. meetings/2026-09-12-steve-matt-planning.md
+    meeting_date: Optional[str] = None
+    dup_of: Optional[int] = None  # extractor thinks this re-treads an existing task
     archived_at: Optional[datetime] = None   # soft delete; nothing is hard-deleted via the API
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
+
+
+class ExtractedMeeting(SQLModel, table=True):
+    """Ledger: which EMOH meeting files have been through the extractor. Keyed by path,
+    so a file is considered exactly once however many times the extractor runs."""
+    path: str = Field(primary_key=True)
+    extracted_at: datetime = Field(default_factory=now)
+    task_count: int = 0
+
+
+class SuggestionHide(SQLModel, table=True):
+    """'Not mine' — this user has passed on this suggestion; it stays visible to the other."""
+    task_id: int = Field(primary_key=True)
+    user_id: int = Field(primary_key=True)
+    hidden_at: datetime = Field(default_factory=now)
+
+
+class Tag(SQLModel, table=True):
+    task_id: int = Field(primary_key=True, foreign_key="task.id")
+    tag: str = Field(primary_key=True)
+
+
+class TagMeta(SQLModel, table=True):
+    tag: str = Field(primary_key=True)
+    description: str = ""
+    updated_at: datetime = Field(default_factory=now)
+
+
+class Milestone(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_id: int = Field(foreign_key="task.id", index=True)
+    text: str
+    done: bool = False
+    sort: int = 0
+    created_at: datetime = Field(default_factory=now)
+
+
+class Notification(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    recipient_id: int = Field(index=True)
+    actor: str = ""
+    kind: str = "mention"         # mention | suggestion | message | assigned
+    task_id: Optional[int] = None
+    text: str = ""
+    seen: bool = False
+    created_at: datetime = Field(default_factory=now)
+
+
+class Message(SQLModel, table=True):
+    """Direct messages. Two people, so one thread; the model still records who sent it."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    from_id: int
+    to_id: int
+    body: str
+    seen: bool = False
+    created_at: datetime = Field(default_factory=now)
 
 
 class Comment(SQLModel, table=True):
@@ -88,7 +148,7 @@ def _add_missing_columns() -> None:
     from sqlalchemy import inspect, text
     insp = inspect(engine)
     with engine.begin() as conn:
-        for model in (User, Task, Comment, ChatMessage, Source):
+        for model in (User, Task, Comment, ChatMessage, Source, ExtractedMeeting, SuggestionHide, Tag, TagMeta, Milestone, Notification, Message):
             table = model.__tablename__
             have = {c["name"] for c in insp.get_columns(table)}
             for col in model.__table__.columns:

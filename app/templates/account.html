@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Account — EMCC{% endblock %}
+{% block main %}
+<style>
+  .grid{max-width:720px;display:flex;flex-direction:column;gap:18px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+  .card h2{margin:0;font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
+  .card input{padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:var(--page);color:var(--ink);width:100%}
+  .row{display:flex;gap:8px;align-items:flex-end} .row label{flex:1}
+  .key{font:13px ui-monospace,Menlo,monospace;background:var(--page);border:1px solid var(--accent);border-radius:5px;padding:9px 11px;overflow-wrap:anywhere}
+  ul{margin:0;padding-left:18px;font-size:14px} li a{color:inherit;text-decoration:none} li a:hover{text-decoration:underline}
+  p{margin:0;font-size:13px;color:var(--dim)}
+</style>
+{% if msg %}<div class="note" style="max-width:720px;margin-bottom:14px">{{ msg }}</div>{% endif %}
+<div class="grid">
+  {% if new_key %}
+  <div class="card" style="border-color:var(--accent)"><h2>New API key — shown once</h2><div class="key">{{ new_key }}</div><p>Copy it now. The previous key stopped working the moment this one was made.</p></div>
+  {% endif %}
+  <div class="card"><h2>Profile</h2>
+    <form method="post" action="/account/name" class="row"><label>Name<input type="text" name="name" value="{{ me.name }}"></label><button class="btn quiet" type="submit">Save</button></form>
+    <p>{{ me.email }} · member since {{ me.created_at.strftime('%d %b %Y') }}</p>
+  </div>
+  <div class="card"><h2>Password</h2>
+    <form method="post" action="/account/password" style="display:flex;flex-direction:column;gap:8px">
+      <label>Current<input type="password" name="current" autocomplete="current-password" required></label>
+      <div class="row"><label>New<input type="password" name="new" autocomplete="new-password" required></label><label>Again<input type="password" name="again" autocomplete="new-password" required></label></div>
+      <div><button class="btn quiet" type="submit">Change password</button></div>
+    </form>
+  </div>
+  <div class="card"><h2>API key</h2>
+    <p>{{ 'You have a key.' if me.api_key_hash else 'No key yet.' }} Rotating makes a new one and invalidates the old immediately.</p>
+    <form method="post" action="/account/key" onsubmit="return confirm('Rotate your API key? Anything using the old one stops working now.')"><button class="btn quiet" type="submit">{{ 'Rotate key' if me.api_key_hash else 'Create key' }}</button></form>
+  </div>
+  <div class="card"><h2>My open tasks · {{ mine|length }}</h2>
+    {% if mine %}<ul>{% for t in mine %}<li><a href="/tasks/{{ t.id }}">{{ t.title }}</a> <span class="mono">{{ t.status }}</span></li>{% endfor %}</ul>{% else %}<p>Nothing assigned to you.</p>{% endif %}
+  </div>
+</div>
+{% endblock %}

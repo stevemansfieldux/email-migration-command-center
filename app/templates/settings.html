@@ -60,6 +60,16 @@ ant auth login</pre>
   {% endif %}
 
   <div class="card">
+    <h2>EMOH — the ops hub</h2>
+    <dl>
+      <dt>repo</dt><dd><code>{{ emoh_repo }}</code></dd>
+      <dt>GITHUB_TOKEN</dt><dd>{{ 'set' if gh_token else 'not set' }}</dd>
+      {% if emoh_path %}<dt>EMOH_PATH</dt><dd><code>{{ emoh_path }}</code> — reading a local checkout instead of GitHub</dd>{% endif %}
+    </dl>
+    {% if not gh_token and not emoh_path %}<p>Meetings are read over the GitHub API. Mint a fine-grained token with <em>Contents: read</em> on just that repo, then <code>./deploy.sh --env GITHUB_TOKEN</code>.</p>{% endif %}
+  </div>
+
+  <div class="card">
     <h2>Models</h2>
     <dl>
       <dt>Ask Claude</dt><dd><code>{{ model }}</code> <span style="font-size:12px;color:var(--dim)">— ASK_MODEL</span></dd>

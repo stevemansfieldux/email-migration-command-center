@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Inbox — EMCC{% endblock %}
+{% block headright %}<a class="btn quiet" href="/messages" style="padding:5px 10px;font-size:12px;text-decoration:none;margin-bottom:14px">Direct messages →</a>{% endblock %}
+{% block main %}
+<style>
+  .nl{max-width:760px;display:flex;flex-direction:column;gap:8px}
+  .nr{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:10px 13px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;font-size:14px}
+  .nr .k{font:10px ui-monospace,Menlo,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-right:8px}
+  .nr .w{font:11px ui-monospace,Menlo,monospace;color:var(--dim);white-space:nowrap}
+  .nr a{color:inherit;text-decoration:none} .nr a:hover{text-decoration:underline}
+  .empty{font-size:13.5px;color:var(--dim)}
+</style>
+<div class="nl">
+  {% for n in notes %}
+  <div class="nr"><span><span class="k">{{ n.kind }}</span>{% if n.task_id %}<a href="/tasks/{{ n.task_id }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</span><span class="w">{{ n.created_at.strftime('%d %b %H:%M') }}</span></div>
+  {% else %}<div class="empty">Nothing yet. Mentions, assignments and new suggestions for you land here.</div>{% endfor %}
+</div>
+{% endblock %}

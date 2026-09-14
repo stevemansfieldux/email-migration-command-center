@@ -25,6 +25,10 @@
         color:var(--dim);text-decoration:none;padding:8px 12px 12px;border-bottom:2px solid transparent;margin-bottom:-1px}
   nav a.on{color:var(--ink);border-bottom-color:var(--accent)}
   nav a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+  .badge{display:inline-block;min-width:16px;padding:0 5px;border-radius:9px;background:var(--accent);color:#fff;font-size:10px;text-align:center;line-height:16px;letter-spacing:0;vertical-align:1px}
+  .chip{display:inline-block;font:10.5px ui-monospace,Menlo,monospace;padding:1px 7px;border:1px solid var(--line);border-radius:10px;color:var(--dim);text-decoration:none;letter-spacing:.02em}
+  .chip:hover{border-color:var(--accent);color:var(--accent)}
+  .sec{font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim);margin:0 0 10px}
   .count{font:12px ui-monospace,Menlo,monospace;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;padding-bottom:14px}
   main{padding-top:22px}
   .mono{font:11px ui-monospace,Menlo,monospace;color:var(--dim)}
@@ -50,9 +54,11 @@
       <h1>Command Centre</h1>
       {% if user %}
       <nav>
-        <a href="/ingest" class="{{ 'on' if tab == 'ingest' else '' }}">Ingest</a>
+        <a href="/meetings" class="{{ 'on' if tab == 'meetings' else '' }}">Meetings</a>
         <a href="/" class="{{ 'on' if tab == 'tasks' else '' }}">Tasks</a>
+        <a href="/tags" class="{{ 'on' if tab == 'tags' else '' }}">Tags</a>
         <a href="/ask" class="{{ 'on' if tab == 'ask' else '' }}">Ask Claude</a>
+        <a href="/inbox" class="{{ 'on' if tab == 'inbox' else '' }}">Inbox{% if unseen %} <span class="badge">{{ unseen }}</span>{% endif %}</a>
         <a href="/settings" class="{{ 'on' if tab == 'settings' else '' }}">Settings</a>
         <a href="/docs" target="_blank" rel="noopener">API ↗</a>
       </nav>
@@ -62,7 +68,7 @@
       {% block headright %}{% endblock %}
       {% if user %}
       <form method="post" action="/logout" style="padding-bottom:14px;display:flex;align-items:center;gap:10px">
-        <span class="mono">{{ user.name }}</span>
+        <a href="/account" class="mono" style="color:var(--ink);text-decoration:none">{{ user.name }}</a>
         <button class="btn quiet" type="submit" style="padding:4px 9px;font-size:11px">Sign out</button>
       </form>
       {% endif %}
