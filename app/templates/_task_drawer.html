@@ -1,0 +1,123 @@
+{# Task drawer — right-hand slide-over that opens on the board. Header chips ARE the
+   controls: a transparent <select> sits over each pill so it reads as a chip but edits
+   with the native dropdown. Tabs: Brief | Conversation | History. Everything saves inline. #}
+<style>
+  #task-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.28);opacity:0;pointer-events:none;transition:opacity .16s;z-index:40}
+  #task-backdrop.open{opacity:1;pointer-events:auto}
+  #task-pane{position:fixed;top:0;right:0;bottom:0;width:min(640px,94vw);background:var(--page);border-left:1px solid var(--line);
+    box-shadow:-12px 0 32px -16px rgba(0,0,0,.35);transform:translateX(102%);transition:transform .18s ease;z-index:41;display:flex;flex-direction:column}
+  #task-pane.open{transform:none}
+  @media (prefers-reduced-motion:reduce){#task-pane,#task-backdrop{transition:none}}
+  .ph{padding:18px 22px 0;border-bottom:1px solid var(--line);background:var(--page)}
+  .ph-top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .ph-id{font:11px ui-monospace,Menlo,monospace;color:var(--dim);display:flex;align-items:center;gap:7px}
+  .ph-top .x{background:none;border:1px solid var(--line);border-radius:5px;color:var(--dim);cursor:pointer;padding:3px 9px;font-size:14px;line-height:1}
+  .ph h2{margin:10px 0 12px;font-size:19px;font-weight:600;letter-spacing:-.015em;line-height:1.3;outline:none;border-bottom:1px solid transparent;padding-bottom:2px;overflow-wrap:anywhere}
+  .ph h2:focus{border-bottom-color:var(--accent)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:14px}
+  .chip2{position:relative;display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:1px solid var(--line);border-radius:13px;background:var(--card);font:12px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--ink);cursor:pointer;white-space:nowrap}
+  .chip2 .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .chip2 select,.chip2 input[type=date]{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font:inherit}
+  .chip2 .lbl{font:10px ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  .av{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font:600 9px ui-monospace,Menlo,monospace;color:#fff;background:var(--dim);flex:none}
+  .ptabs{display:flex;gap:2px}
+  .ptabs button{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:8px 10px 11px;font:12px ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);cursor:pointer}
+  .ptabs button.on{color:var(--ink);border-bottom-color:var(--accent)}
+  .ptabs .bd{display:inline-block;min-width:16px;padding:0 5px;margin-left:5px;border-radius:9px;background:var(--line);color:var(--ink);font-size:10px;text-align:center;line-height:16px;letter-spacing:0}
+  .pbody{flex:1;overflow:auto;padding:16px 22px 24px}
+  .pbody section[hidden]{display:none}
+  .pm{display:grid;grid-template-columns:78px 1fr;gap:8px 12px;font-size:13px;align-items:start;margin-bottom:16px}
+  .pm .k{font:10px ui-monospace,Menlo,monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--dim);padding-top:3px}
+  .pm a{color:var(--accent)}
+  .ptags{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+  .ptags .chip .rm{margin-left:5px;cursor:pointer;color:var(--dim)}
+  .ptags form{display:inline-flex} .ptags input{width:110px;padding:2px 8px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:11.5px}
+  .psub{margin:18px 0 8px;font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim);display:flex;justify-content:space-between;align-items:baseline}
+  .psub .tog{background:none;border:none;color:var(--accent);cursor:pointer;font:inherit;letter-spacing:0;text-transform:none}
+  .pq{border-left:2px solid var(--accent);padding:6px 12px;font-style:italic;color:var(--dim);font-size:13px;background:var(--card);border-radius:0 5px 5px 0;margin-bottom:10px}
+  .pdesc{font-size:14px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;padding:9px 11px;border:1px solid transparent;border-radius:5px;min-height:40px;outline:none}
+  .pdesc.clamp{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+  .pdesc:focus{border-color:var(--accent);background:var(--card)}
+  .pdesc:empty::before{content:"Add context…";color:var(--dim)}
+  .pms .mi{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+  .pms .mi.done .t{text-decoration:line-through;color:var(--dim)}
+  .pms .tick{width:16px;height:16px;border:1.5px solid var(--dim);border-radius:3px;background:transparent;cursor:pointer;padding:0;flex:none}
+  .pms .mi.done .tick{background:var(--done);border-color:var(--done)}
+  .pms .t{flex:1} .pms .del{background:none;border:none;color:var(--dim);cursor:pointer;font-size:13px}
+  .pms form{display:flex;gap:8px;margin-top:8px} .pms input{flex:1;padding:6px 9px;border:1px solid var(--line);border-radius:5px;background:var(--card);color:var(--ink)}
+  .pdanger{margin-top:26px;padding-top:14px;border-top:1px solid var(--line)}
+  .pdanger button{background:none;border:1px solid var(--line);color:var(--dim);border-radius:5px;padding:5px 10px;font-size:12px;cursor:pointer}
+  .cm{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:9px 12px;margin-bottom:8px}
+  .cm .who{font:11px ui-monospace,Menlo,monospace;color:var(--dim);display:flex;gap:10px;margin-bottom:3px}
+  .cm .who .av{width:16px;height:16px;font-size:8px}
+  .cm .b{font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.5}
+  .cm .b code{font:12px ui-monospace,Menlo,monospace;background:var(--page);padding:1px 4px;border-radius:3px}
+  .hi-row{display:grid;grid-template-columns:110px 1fr;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .hi-row .w{font:11px ui-monospace,Menlo,monospace;color:var(--dim)} .hi-row .k{font:10px ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-right:6px}
+  .pfoot{border-top:1px solid var(--line);padding:12px 22px 14px;background:var(--page)}
+  .pfoot textarea{width:100%;min-height:64px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);resize:vertical;font:inherit}
+  .pfoot .r{display:flex;justify-content:space-between;align-items:center;margin-top:6px;font:11px ui-monospace,Menlo,monospace;color:var(--dim)}
+  .muted{font-size:13px;color:var(--dim)}
+  .sugg-bar{margin-bottom:12px;padding:9px 12px;border-left:3px solid var(--blocked);background:var(--card);border-radius:0 5px 5px 0;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .sugg-bar b{color:var(--blocked)}
+  .sugg-bar .bs{display:flex;gap:6px} .sugg-bar button{padding:4px 10px;font-size:12px;border-radius:4px;cursor:pointer}
+</style>
+
+<div id="task-backdrop" onclick="closeTask()"></div>
+<aside id="task-pane" aria-hidden="true" role="dialog" aria-label="task">
+  <header class="ph">
+    <div class="ph-top">
+      <span class="ph-id"><span class="dot" id="pane-dot" style="background:var(--dim)"></span><span id="pane-ref">#</span><a id="pane-page" href="#" class="mono" style="color:var(--dim);text-decoration:none" title="open as a page">↗</a></span>
+      <button type="button" class="x" onclick="closeTask()" aria-label="close">✕</button>
+    </div>
+    <h2 id="pane-title" contenteditable="true" spellcheck="false" onblur="paneSaveTitle()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur()}"></h2>
+    <div id="pane-sugg" class="sugg-bar" hidden>
+      <span><b>Suggestion</b> — for <span id="pane-sugg-for"></span>.<span id="pane-sugg-dup"></span></span>
+      <span class="bs"><button class="btn" type="button" onclick="paneAccept()">Accept</button><button class="btn quiet" type="button" onclick="paneDismiss()">Dismiss</button></span>
+    </div>
+    <div class="chips">
+      <span class="chip2" id="chip-status"><span class="dot" id="chip-status-dot"></span><span id="chip-status-lbl">open</span>
+        <select id="sel-status" onchange="paneSave('status', this.value)">{% for s in ['suggested','open','doing','blocked','done','dismissed'] %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select></span>
+      <span class="chip2" id="chip-prio"><span class="lbl">prio</span><span id="chip-prio-lbl">normal</span>
+        <select id="sel-prio" onchange="paneSave('priority', this.value)">{% for p in ['low','normal','high'] %}<option value="{{ p }}">{{ p }}</option>{% endfor %}</select></span>
+      <span class="chip2" id="chip-due"><span class="lbl">due</span><span id="chip-due-lbl">—</span>
+        <input type="date" id="inp-due" onchange="paneSave('due', this.value)"></span>
+      <span class="chip2" id="chip-owner"><span class="av" id="chip-owner-av">?</span><span id="chip-owner-lbl">unassigned</span>
+        <select id="sel-owner" onchange="paneSave('owner', this.value)"><option value="unassigned">unassigned</option>{% for u in users %}<option value="{{ u.name }}">{{ u.name }}</option>{% endfor %}</select></span>
+    </div>
+    <nav class="ptabs">
+      <button type="button" data-tab="brief" class="on" onclick="showPaneTab('brief')">Brief</button>
+      <button type="button" data-tab="conv" onclick="showPaneTab('conv')">Conversation<span class="bd" id="pane-conv-n">0</span></button>
+      <button type="button" data-tab="hist" onclick="showPaneTab('hist')">History</button>
+    </nav>
+  </header>
+
+  <div class="pbody">
+    <section data-tab="brief">
+      <div class="pm">
+        <div class="k">Source</div><div id="pane-source" class="muted">—</div>
+        <div class="k">Tags</div>
+        <div class="ptags" id="pane-tags"></div>
+      </div>
+      <div class="psub"><span>Context</span><button type="button" class="tog" id="pane-desc-toggle" onclick="toggleDesc()" hidden>Show more</button></div>
+      <div id="pane-quotes"></div>
+      <div id="pane-desc" class="pdesc clamp" contenteditable="true" onblur="paneSaveDesc()"></div>
+      <div class="psub"><span>Milestones <span id="pane-ms-count" class="mono"></span></span></div>
+      <div class="pms"><div id="pane-milestones"></div>
+        <form onsubmit="return paneAddMilestone(event)"><input type="text" id="pane-ms-input" placeholder="Add a milestone" autocomplete="off"><button class="btn quiet" type="submit">Add</button></form>
+      </div>
+      <div class="pdanger"><button type="button" onclick="paneArchive()">Archive task</button></div>
+    </section>
+    <section data-tab="conv" hidden><div id="pane-comments"></div></section>
+    <section data-tab="hist" hidden><div id="pane-history"></div></section>
+  </div>
+
+  <footer class="pfoot" id="pane-footer">
+    <form onsubmit="return paneAddComment(event)">
+      <textarea id="pane-cbody" placeholder="Comment — @Steve or @Matt to notify" onkeydown="if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){this.form.requestSubmit()}"></textarea>
+      <div class="r"><span>⌘↵ to send · as {{ user.name }}</span><button class="btn" type="submit">Comment</button></div>
+    </form>
+  </footer>
+</aside>
+<script src="/static/task_drawer.js"></script>
+{% if open_task %}<script>window.addEventListener('DOMContentLoaded', () => openTask({{ open_task }}))</script>{% endif %}

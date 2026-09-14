@@ -138,6 +138,7 @@ def run(limit: int | None = None, by: str = "system") -> dict:
                         dup_of=t.get("dup_of"), created_by=f"extractor via {by}",
                     )
                     s.add(task); s.commit(); s.refresh(task)
+                    s.add(db.TaskEvent(task_id=task.id, actor="extractor", kind="created", detail=f"suggested from {m['path']}"))
                     created += 1
                     if (uid := _owner_id(task.suggested_owner)):
                         s.add(db.Notification(recipient_id=uid, actor="extractor", kind="suggestion", task_id=task.id,

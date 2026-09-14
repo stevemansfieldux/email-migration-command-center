@@ -108,6 +108,16 @@ class Message(SQLModel, table=True):
     created_at: datetime = Field(default_factory=now)
 
 
+class TaskEvent(SQLModel, table=True):
+    """History: who changed what. Written by the app on every mutation; never edited."""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    task_id: int = Field(foreign_key="task.id", index=True)
+    actor: str
+    kind: str                     # created | status | field | comment | milestone | tag | accepted | dismissed | archived | restored
+    detail: str = ""
+    created_at: datetime = Field(default_factory=now)
+
+
 class Comment(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     task_id: int = Field(foreign_key="task.id", index=True)
@@ -148,7 +158,7 @@ def _add_missing_columns() -> None:
     from sqlalchemy import inspect, text
     insp = inspect(engine)
     with engine.begin() as conn:
-        for model in (User, Task, Comment, ChatMessage, Source, ExtractedMeeting, SuggestionHide, Tag, TagMeta, Milestone, Notification, Message):
+        for model in (User, Task, Comment, ChatMessage, Source, ExtractedMeeting, SuggestionHide, Tag, TagMeta, Milestone, Notification, Message, TaskEvent):
             table = model.__tablename__
             have = {c["name"] for c in insp.get_columns(table)}
             for col in model.__table__.columns:

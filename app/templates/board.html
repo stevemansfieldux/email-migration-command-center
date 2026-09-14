@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Tasks — EMCC{% endblock %}
+{% endblock %}
 {% block headright %}<span class="count">{{ total }} task{{ '' if total == 1 else 's' }}{% if tag %} · #{{ tag }} <a href="/" class="mono" style="color:var(--accent)">×</a>{% endif %}</span>{% endblock %}
+{% endblock %}
 {% block main %}
 <style>
   .sugg{margin-bottom:26px;display:flex;flex-direction:column;gap:8px}
@@ -26,7 +28,7 @@
   .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font:11px ui-monospace,Menlo,monospace;color:var(--dim);align-items:center}
   .hi{color:var(--blocked)}
   .prog{font:11px ui-monospace,Menlo,monospace;color:var(--done)}
-  .task select{font:11px ui-monospace,Menlo,monospace;background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:4px;padding:2px 4px}
+  .task{cursor:pointer}
   .empty{font-size:13px;color:var(--dim);padding:10px 2px}
   @media (prefers-reduced-motion:reduce){.col{transition:none}}
 </style>
@@ -75,9 +77,6 @@
         {% if ms[t.id][1] %}<span class="prog">{{ ms[t.id][0] }}/{{ ms[t.id][1] }}</span>{% endif %}
         {% for tg in tags[t.id] %}<a class="chip" href="/?tag={{ tg }}">#{{ tg }}</a>{% endfor %}
       </div>
-      <form method="post" action="/tasks/{{ t.id }}/status">
-        <select name="status" onchange="this.form.submit()" aria-label="status">{% for s in statuses %}<option value="{{ s }}" {% if s == t.status %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
-      </form>
     </div>
     {% endfor %}
     <div class="empty" {% if columns[st] %}hidden{% endif %}>Nothing here.</div>
@@ -85,9 +84,9 @@
   {% endfor %}
 </div>
 <script>
+window.recount = () => document.querySelectorAll('.col').forEach(c => { const n = c.querySelectorAll('.task').length; c.querySelector('.n').textContent = n; c.querySelector('.empty').hidden = n > 0; });
 (() => {
   let dragged = null;
-  const recount = () => document.querySelectorAll('.col').forEach(c => { const n = c.querySelectorAll('.task').length; c.querySelector('.n').textContent = n; c.querySelector('.empty').hidden = n > 0; });
   document.querySelectorAll('.task').forEach(el => {
     el.addEventListener('dragstart', e => { dragged = el; el.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
     el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragged = null; document.querySelectorAll('.col.over').forEach(c => c.classList.remove('over')); });
@@ -98,11 +97,12 @@
     col.addEventListener('drop', async e => {
       e.preventDefault(); col.classList.remove('over'); if (!dragged) return;
       const status = col.dataset.status, id = dragged.dataset.id, from = dragged.parentElement; if (from === col) return;
-      col.insertBefore(dragged, col.querySelector('.empty')); dragged.querySelector('select').value = status; recount();
+      col.insertBefore(dragged, col.querySelector('.empty')); recount();
       const r = await fetch(`/api/tasks/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
       if (!r.ok) { from.insertBefore(dragged, from.querySelector('.empty')); recount(); location.reload(); }
     });
   });
 })();
 </script>
+{% include "_task_drawer.html" %}
 {% endblock %}

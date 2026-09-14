@@ -9,6 +9,7 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sqlmodel import select
@@ -62,6 +63,7 @@ app = FastAPI(title="EMCC API", version="0.3", lifespan=lifespan,
               description="The venture command centre. Auth: session from /login, or `Authorization: Bearer <api key>`.")
 app.add_middleware(SessionMiddleware, secret_key=secret_key(), same_site="lax", https_only=False)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 
 
 @app.exception_handler(auth.LoginRequired)
@@ -101,17 +103,33 @@ def split_detail(detail: str) -> tuple[str, list[str]]:
 PATCHABLE = {"title", "detail", "owner", "priority", "due", "status", "tags"}
 
 
-def _apply(task: db.Task, fields: dict) -> None:
+def log_event(s, task_id: int, actor: str, kind: str, detail: str = "") -> None:
+    s.add(db.TaskEvent(task_id=task_id, actor=actor, kind=kind, detail=detail[:400]))
+
+
+def _apply(task: db.Task, fields: dict, actor: str = "", s=None) -> None:
     for k, v in fields.items():
         if k not in PATCHABLE:
             continue
+        if k == "detail":
+            # The drawer edits the context body; the extractor's quote lines stay attached.
+            _, quotes = split_detail(task.detail)
+            if quotes and not any(l.startswith("> ") for l in str(v).splitlines()):
+                v = str(v).strip() + "\n\n" + "\n".join("> " + q for q in quotes)
         if k == "status" and v not in ALL_STATUSES:
             raise HTTPException(400, f"status must be one of {ALL_STATUSES}")
         if k == "priority" and v not in PRIORITIES:
             raise HTTPException(400, f"priority must be one of {PRIORITIES}")
         if k == "title" and not str(v).strip():
             raise HTTPException(400, "title cannot be empty")
-        setattr(task, k, v if v != "" else (None if k == "due" else ""))
+        old = getattr(task, k)
+        new = v if v != "" else (None if k == "due" else "")
+        if old != new:
+            setattr(task, k, new)
+            if s is not None and task.id and k != "detail":
+                log_event(s, task.id, actor, "status" if k == "status" else "field", f"{k}: {old or '—'} → {new or '—'}")
+            elif s is not None and task.id:
+                log_event(s, task.id, actor, "field", "context edited")
     task.updated_at = db.now()
 
 
@@ -223,7 +241,7 @@ def account_key(request: Request, user: db.User = auth.PageUser):
 # ---------- board + suggestions ----------
 
 @app.get("/", response_class=HTMLResponse)
-def board(request: Request, tag: Optional[str] = None, user: db.User = auth.PageUser):
+def board(request: Request, tag: Optional[str] = None, task: Optional[int] = None, user: db.User = auth.PageUser):
     with db.session() as s:
         q = select(db.Task).where(db.Task.archived_at.is_(None), db.Task.status.in_(STATUSES))
         tasks = s.exec(q.order_by(db.Task.updated_at.desc())).all()
@@ -238,19 +256,20 @@ def board(request: Request, tag: Optional[str] = None, user: db.User = auth.Page
         dup_titles = {t.dup_of: s.get(db.Task, t.dup_of).title for t in sugg if t.dup_of and s.get(db.Task, t.dup_of)}
     columns = {st: [t for t in tasks if t.status == st] for st in STATUSES}
     return page(request, "board.html", user, columns=columns, statuses=STATUSES, total=len(tasks), tab="tasks",
-                suggestions=sugg, tags=tags, ms=ms, dup_titles=dup_titles, tag=tag)
+                suggestions=sugg, tags=tags, ms=ms, dup_titles=dup_titles, tag=tag, open_task=task, users=users_all())
 
 
 @app.post("/tasks/{task_id}/status")
 def set_status(task_id: int, status: str = Form(...), user: db.User = auth.PageUser):
     with db.session() as s:
-        t = _get_task(s, task_id); _apply(t, {"status": status}); s.add(t); s.commit()
+        t = _get_task(s, task_id); _apply(t, {"status": status}, user.name, s); s.add(t); s.commit()
     return RedirectResponse("/", status_code=303)
 
 
-def _accept(s, t: db.Task, owner: Optional[str]) -> None:
+def _accept(s, t: db.Task, owner: Optional[str], actor: str = "") -> None:
     t.owner = owner or t.suggested_owner or "unassigned"
     t.status = "open"; t.updated_at = db.now(); s.add(t)
+    log_event(s, t.id, actor, "accepted", f"owner {t.owner}")
 
 
 @app.post("/suggestions/{task_id}/accept")
@@ -259,14 +278,14 @@ def suggest_accept(task_id: int, owner: str = Form(""), user: db.User = auth.Pag
         t = _get_task(s, task_id)
         if t.status != "suggested":
             raise HTTPException(400, "not a suggestion")
-        _accept(s, t, owner or None); s.commit()
+        _accept(s, t, owner or None, user.name); s.commit()
     return RedirectResponse("/", status_code=303)
 
 
 @app.post("/suggestions/{task_id}/dismiss")
 def suggest_dismiss(task_id: int, user: db.User = auth.PageUser):
     with db.session() as s:
-        t = _get_task(s, task_id); t.status = "dismissed"; t.updated_at = db.now(); s.add(t); s.commit()
+        t = _get_task(s, task_id); t.status = "dismissed"; t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "dismissed"); s.commit()
     return RedirectResponse("/", status_code=303)
 
 
@@ -304,7 +323,7 @@ def task_update(task_id: int, title: str = Form(...), detail: str = Form(""), ow
         _, quotes = split_detail(t.detail)
         merged = detail.strip() + ("\n\n" + "\n".join("> " + q for q in quotes) if quotes else "")
         prev_owner = t.owner
-        _apply(t, {"title": title, "detail": merged, "owner": owner, "priority": priority, "due": due, "status": status})
+        _apply(t, {"title": title, "detail": merged, "owner": owner, "priority": priority, "due": due, "status": status}, user.name, s)
         if owner != prev_owner and owner not in ("", "unassigned", user.name):
             if (u := next((x for x in users_all() if x.name == owner), None)):
                 s.add(db.Notification(recipient_id=u.id, actor=user.name, kind="assigned", task_id=t.id, text=f"{user.name} assigned you #{t.id} {t.title}"))
@@ -318,7 +337,7 @@ def add_comment_ui(task_id: int, body: str = Form(...), user: db.User = auth.Pag
         with db.session() as s:
             t = _get_task(s, task_id)
             s.add(db.Comment(task_id=task_id, author=user.name, body=body.strip()))
-            notify_mentions(s, user, t, body)
+            notify_mentions(s, user, t, body); log_event(s, t.id, user.name, "comment")
             t.updated_at = db.now(); s.add(t); s.commit()
     return RedirectResponse(f"/tasks/{task_id}", status_code=303)
 
@@ -326,7 +345,7 @@ def add_comment_ui(task_id: int, body: str = Form(...), user: db.User = auth.Pag
 @app.post("/tasks/{task_id}/archive")
 def archive_ui(task_id: int, user: db.User = auth.PageUser):
     with db.session() as s:
-        t = _get_task(s, task_id); t.archived_at = db.now(); t.updated_at = db.now(); s.add(t); s.commit()
+        t = _get_task(s, task_id); t.archived_at = db.now(); t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "archived"); s.commit()
     return RedirectResponse("/", status_code=303)
 
 
@@ -622,7 +641,7 @@ def api_create_task(payload: TaskIn, user: db.User = auth.CurrentUser):
         raise HTTPException(400, f"priority must be one of {PRIORITIES}")
     with db.session() as s:
         t = db.Task(**payload.model_dump(exclude={"tags"}), created_by=user.name)
-        s.add(t); s.commit(); s.refresh(t)
+        s.add(t); s.commit(); s.refresh(t); log_event(s, t.id, user.name, "created")
         for tg in payload.tags:
             if (tg := norm_tag(tg)) and len(tg) >= 2:
                 s.add(db.Tag(task_id=t.id, tag=tg))
@@ -641,10 +660,17 @@ def api_get_task(task_id: int, user: db.User = auth.CurrentUser):
         return {**_task_out(s, t), "comments": [c.model_dump() for c in comments], "milestones": [m.model_dump() for m in miles]}
 
 
+@app.get("/api/tasks/{task_id}/history", tags=["tasks"])
+def api_history(task_id: int, user: db.User = auth.CurrentUser):
+    with db.session() as s:
+        _get_task(s, task_id, allow_archived=True)
+        return [e.model_dump() for e in s.exec(select(db.TaskEvent).where(db.TaskEvent.task_id == task_id).order_by(db.TaskEvent.created_at.desc())).all()]
+
+
 @app.patch("/api/tasks/{task_id}", tags=["tasks"])
 def api_patch_task(task_id: int, payload: TaskPatch, user: db.User = auth.CurrentUser):
     with db.session() as s:
-        t = _get_task(s, task_id); _apply(t, payload.model_dump(exclude_none=True)); s.add(t); s.commit(); s.refresh(t)
+        t = _get_task(s, task_id); _apply(t, payload.model_dump(exclude_none=True), user.name, s); s.add(t); s.commit(); s.refresh(t)
         return _task_out(s, t)
 
 
@@ -652,7 +678,7 @@ def api_patch_task(task_id: int, payload: TaskPatch, user: db.User = auth.Curren
 def api_delete_task(task_id: int, user: db.User = auth.CurrentUser):
     """Archives. Nothing is hard-deleted; POST /restore brings it back."""
     with db.session() as s:
-        t = _get_task(s, task_id); t.archived_at = db.now(); t.updated_at = db.now(); s.add(t); s.commit()
+        t = _get_task(s, task_id); t.archived_at = db.now(); t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "archived"); s.commit()
     return {"archived": task_id}
 
 
@@ -682,14 +708,14 @@ def api_accept(task_id: int, payload: AcceptIn = AcceptIn(), user: db.User = aut
         t = _get_task(s, task_id)
         if t.status != "suggested":
             raise HTTPException(400, "not a suggestion")
-        _accept(s, t, payload.owner); s.commit(); s.refresh(t)
+        _accept(s, t, payload.owner, user.name); s.commit(); s.refresh(t)
         return _task_out(s, t)
 
 
 @app.post("/api/suggestions/{task_id}/dismiss", tags=["suggestions"])
 def api_dismiss(task_id: int, user: db.User = auth.CurrentUser):
     with db.session() as s:
-        t = _get_task(s, task_id); t.status = "dismissed"; t.updated_at = db.now(); s.add(t); s.commit()
+        t = _get_task(s, task_id); t.status = "dismissed"; t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "dismissed"); s.commit()
     return {"dismissed": task_id}
 
 
@@ -721,7 +747,7 @@ def api_add_comment(task_id: int, payload: CommentIn, user: db.User = auth.Curre
     with db.session() as s:
         t = _get_task(s, task_id)
         c = db.Comment(task_id=task_id, author=user.name, body=payload.body.strip()); s.add(c)
-        notify_mentions(s, user, t, payload.body)
+        notify_mentions(s, user, t, payload.body); log_event(s, t.id, user.name, "comment")
         t.updated_at = db.now(); s.add(t); s.commit(); s.refresh(c)
         return c.model_dump()
 
@@ -761,7 +787,7 @@ def api_tag_add(task_id: int, payload: TagIn, user: db.User = auth.CurrentUser):
     with db.session() as s:
         _get_task(s, task_id)
         if not s.get(db.Tag, (task_id, tag)):
-            s.add(db.Tag(task_id=task_id, tag=tag))
+            s.add(db.Tag(task_id=task_id, tag=tag)); log_event(s, task_id, user.name, "tag", f"+{tag}")
         if not s.get(db.TagMeta, tag):
             s.add(db.TagMeta(tag=tag))
         s.commit()
@@ -772,7 +798,7 @@ def api_tag_add(task_id: int, payload: TagIn, user: db.User = auth.CurrentUser):
 def api_tag_remove(task_id: int, tag: str, user: db.User = auth.CurrentUser):
     with db.session() as s:
         if (r := s.get(db.Tag, (task_id, tag))):
-            s.delete(r); s.commit()
+            s.delete(r); log_event(s, task_id, user.name, "tag", f"-{tag}"); s.commit()
         return {"task_id": task_id, "tags": tags_of(s, task_id)}
 
 
@@ -800,7 +826,7 @@ def api_milestone_add(task_id: int, payload: MilestoneIn, user: db.User = auth.C
     with db.session() as s:
         _get_task(s, task_id)
         n = len(s.exec(select(db.Milestone).where(db.Milestone.task_id == task_id)).all())
-        m = db.Milestone(task_id=task_id, text=payload.text.strip(), sort=n); s.add(m); s.commit(); s.refresh(m)
+        m = db.Milestone(task_id=task_id, text=payload.text.strip(), sort=n); s.add(m); log_event(s, task_id, user.name, "milestone", f"+ {m.text}"); s.commit(); s.refresh(m)
         return m.model_dump()
 
 
@@ -810,7 +836,7 @@ def api_milestone_toggle(mid: int, user: db.User = auth.CurrentUser):
         m = s.get(db.Milestone, mid)
         if not m:
             raise HTTPException(404, "no such milestone")
-        m.done = not m.done; s.add(m); s.commit(); s.refresh(m)
+        m.done = not m.done; s.add(m); log_event(s, m.task_id, user.name, "milestone", f"{'✓' if m.done else '○'} {m.text}"); s.commit(); s.refresh(m)
         return m.model_dump()
 
 
