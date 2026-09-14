@@ -23,8 +23,11 @@ def profiles() -> list[str]:
 
 
 def status() -> dict:
+    k = os.environ.get("ANTHROPIC_API_KEY", "")
     out = {
-        "api_key_set": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "api_key_set": bool(k),
+        "api_key_shape": (k[:7] + "…" + f" ({len(k)} chars)") if k else None,
+        "api_key_looks_wrong": bool(k) and not k.startswith("sk-ant-"),
         "auth_token_set": bool(os.environ.get("ANTHROPIC_AUTH_TOKEN")),
         "profile_env": os.environ.get("ANTHROPIC_PROFILE") or None,
         "profiles": profiles(),
@@ -48,11 +51,12 @@ def status() -> dict:
 
 
 def test_connection(model: str) -> tuple[bool, str]:
-    """One cheap call. Says which error class if it fails, never the credential."""
+    """One tiny real request on the messages endpoint — the one the app actually uses.
+    Says which error class if it fails, never the credential."""
     import anthropic
     try:
-        m = anthropic.Anthropic().models.retrieve(model)
-        return True, f"OK — {m.id} ({getattr(m, 'display_name', '')})"
+        r = anthropic.Anthropic().messages.create(model=model, max_tokens=5, messages=[{"role": "user", "content": "ping"}])
+        return True, f"OK — {r.model} answered ({r.usage.input_tokens} in / {r.usage.output_tokens} out)"
     except anthropic.AuthenticationError:
         return False, "A credential was found but the API rejected it. Re-run `ant auth login` (tokens expire), or check the key."
     except TypeError as e:

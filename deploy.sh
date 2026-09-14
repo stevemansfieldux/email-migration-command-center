@@ -20,6 +20,9 @@ case "${1:-}" in
     name="${2:?usage: ./deploy.sh --env NAME}"
     read -r -s -p "$name: " value; echo
     [ -n "$value" ] || { echo "empty, nothing written"; exit 1; }
+    if [ "$name" = ANTHROPIC_API_KEY ] && [[ "$value" != sk-ant-* ]]; then
+      echo "that doesn't look like an Anthropic key (they start sk-ant-). A cc_ key is this app's own API key — wrong slot. Nothing written."; exit 1
+    fi
     printf '%s' "$value" | "${SSH[@]}" --command="sudo -u cc /srv/cc/app/deploy/setenv.sh $name && sudo systemctl restart cc && echo 'service restarted'"
     exit ;;
 esac

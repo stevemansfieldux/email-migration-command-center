@@ -21,7 +21,7 @@
     <h2>Credential</h2>
     <dl>
       <dt>in use</dt><dd><strong>{{ st.source }}</strong></dd>
-      <dt>ANTHROPIC_API_KEY</dt><dd>{{ 'set' if st.api_key_set else 'not set' }}</dd>
+      <dt>ANTHROPIC_API_KEY</dt><dd>{% if st.api_key_set %}set — <code>{{ st.api_key_shape }}</code>{% if st.api_key_looks_wrong %} <span class="bad">— doesn't start with sk-ant-, probably the wrong key</span>{% endif %}{% else %}not set{% endif %}</dd>
       <dt>ANTHROPIC_AUTH_TOKEN</dt><dd>{{ 'set' if st.auth_token_set else 'not set' }}</dd>
       <dt>ant CLI</dt><dd>{{ 'installed' if st.ant_installed else 'not installed' }}</dd>
       <dt>profiles on disk</dt><dd>{{ st.profiles|join(', ') if st.profiles else 'none' }}</dd>
