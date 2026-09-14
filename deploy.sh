@@ -20,7 +20,7 @@ case "${1:-}" in
     name="${2:?usage: ./deploy.sh --env NAME}"
     read -r -s -p "$name: " value; echo
     [ -n "$value" ] || { echo "empty, nothing written"; exit 1; }
-    printf '%s' "$value" | "${SSH[@]}" --command="sudo -u cc bash -c 'v=\$(cat); f=/srv/cc/app/.env; touch \$f; grep -v "^$name=" \$f > \$f.tmp || true; printf "%s=%s\\n" "$name" "\$v" >> \$f.tmp; mv \$f.tmp \$f; chmod 600 \$f' && sudo systemctl restart cc && echo "$name set, service restarted""
+    printf '%s' "$value" | "${SSH[@]}" --command="sudo -u cc /srv/cc/app/deploy/setenv.sh $name && sudo systemctl restart cc && echo 'service restarted'"
     exit ;;
 esac
 
