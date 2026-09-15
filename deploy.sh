@@ -9,7 +9,7 @@
 #   ./deploy.sh --env NAME # set one env var on the box (prompts, hidden) and restart
 #   ./deploy.sh --backup   # run the nightly backup now and list what is in the bucket
 set -euo pipefail
-P=steve-command-center; Z=europe-west2-a; H=cc
+P=steve-command-center; Z=europe-west2-b; H=cc
 SSH=(gcloud compute ssh "$H" --project="$P" --zone="$Z" --quiet)
 cd "$(dirname "$0")"
 

@@ -19,6 +19,10 @@ with dst: src.backup(dst)
 src.close(); dst.close()
 PY
 gzip -f "$FILE"
-gcloud storage cp -q "$FILE.gz" "$BUCKET/"
+# Upload with the VM's own identity via the metadata server — no gcloud (the snap refuses
+# to run for a user whose home is outside /home) and no key file on disk.
+TOKEN=$(curl -sf -H 'Metadata-Flavor: Google' 'http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token' | "$APP/.venv/bin/python" -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+curl -sf -o /dev/null -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/gzip' --data-binary @"$FILE.gz" \
+  "https://storage.googleapis.com/upload/storage/v1/b/${BUCKET#gs://}/o?uploadType=media&name=$(basename "$FILE.gz")"
 ls -1t "$OUT"/command-center-*.db.gz | tail -n +8 | xargs -r rm -f
 echo "backup ok: $FILE.gz → $BUCKET ($(stat -c %s "$FILE.gz") bytes)"

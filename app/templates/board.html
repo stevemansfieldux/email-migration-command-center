@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Tasks — EMCC{% endblock %}
-{% block headright %}<button class="btn" type="button" onclick="document.getElementById('new-task').showModal()">+ New task</button> <span class="count">{{ total }} task{{ '' if total == 1 else 's' }}{% if tag %} · #{{ tag }} <a href="/" class="mono" style="color:var(--accent)">×</a>{% endif %}</span>{% endblock %}
+{% block headright %}<button class="btn" type="button" style="padding:5px 12px;font-size:12px" onclick="document.getElementById('new-task').showModal()">+ New task</button> <span class="count">{{ total }} task{{ '' if total == 1 else 's' }}{% if tag %} · #{{ tag }} <a href="/" class="mono" style="color:var(--accent)">×</a>{% endif %}</span>{% endblock %}
 {% block main %}
 <style>
   .sugg{margin-bottom:26px;display:flex;flex-direction:column;gap:8px}
