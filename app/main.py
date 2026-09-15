@@ -56,6 +56,7 @@ load_env()
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     db.init()
+    extract.start_scheduler()
     yield
 
 
@@ -259,6 +260,25 @@ def board(request: Request, tag: Optional[str] = None, task: Optional[int] = Non
                 suggestions=sugg, tags=tags, ms=ms, dup_titles=dup_titles, tag=tag, open_task=task, users=users_all())
 
 
+@app.post("/tasks/new")
+def task_new(title: str = Form(...), detail: str = Form(""), owner: str = Form("unassigned"), priority: str = Form("normal"),
+             due: str = Form(""), tags: str = Form(""), user: db.User = auth.PageUser):
+    """The board's + New task dialog. Same shape as POST /api/tasks, then opens the drawer on the new card."""
+    if priority not in PRIORITIES or owner not in owners() + ["unassigned"]:
+        raise HTTPException(400, "bad owner or priority")
+    with db.session() as s:
+        t = db.Task(title=title.strip()[:200], detail=detail.strip(), owner=owner, priority=priority,
+                    due=due or None, source="manual", created_by=user.name)
+        s.add(t); s.commit(); s.refresh(t); log_event(s, t.id, user.name, "created")
+        for tg in {norm_tag(x) for x in tags.replace("#", " ").replace(",", " ").split()}:
+            if tg and len(tg) >= 2:
+                s.add(db.Tag(task_id=t.id, tag=tg))
+                if not s.get(db.TagMeta, tg):
+                    s.add(db.TagMeta(tag=tg))
+        s.commit()
+        return RedirectResponse(f"/?task={t.id}", status_code=303)
+
+
 @app.post("/tasks/{task_id}/status")
 def set_status(task_id: int, status: str = Form(...), user: db.User = auth.PageUser):
     with db.session() as s:
@@ -446,7 +466,7 @@ def meetings_page(request: Request, user: db.User = auth.PageUser):
         ledger = {r.path: r for r in s.exec(select(db.ExtractedMeeting)).all()}
     for m in meetings:
         m["extracted"] = ledger.get(m["path"])
-    return page(request, "meetings.html", user, tab="meetings", meetings=meetings, error=error, status=extract.STATUS, source=("local " + os.environ["EMOH_PATH"]) if os.environ.get("EMOH_PATH") else kb.REPO)
+    return page(request, "meetings.html", user, tab="meetings", meetings=meetings, error=error, status=extract.STATUS, auto_min=extract.interval_min(), source=("local " + os.environ["EMOH_PATH"]) if os.environ.get("EMOH_PATH") else kb.REPO)
 
 
 @app.get("/meetings/view/{path:path}", response_class=HTMLResponse)

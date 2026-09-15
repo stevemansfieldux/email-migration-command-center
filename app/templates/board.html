@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Tasks — EMCC{% endblock %}
-{% block headright %}<span class="count">{{ total }} task{{ '' if total == 1 else 's' }}{% if tag %} · #{{ tag }} <a href="/" class="mono" style="color:var(--accent)">×</a>{% endif %}</span>{% endblock %}
+{% block headright %}<button class="btn" type="button" onclick="document.getElementById('new-task').showModal()">+ New task</button> <span class="count">{{ total }} task{{ '' if total == 1 else 's' }}{% if tag %} · #{{ tag }} <a href="/" class="mono" style="color:var(--accent)">×</a>{% endif %}</span>{% endblock %}
 {% block main %}
 <style>
   .sugg{margin-bottom:26px;display:flex;flex-direction:column;gap:8px}
@@ -102,5 +102,32 @@ window.recount = () => document.querySelectorAll('.col').forEach(c => { const n 
   });
 })();
 </script>
+<dialog id="new-task">
+  <form method="post" action="/tasks/new" class="nt">
+    <h2>New task</h2>
+    <label>Title <input name="title" required autofocus maxlength="200" placeholder="What needs doing"></label>
+    <label>Detail <textarea name="detail" rows="4" placeholder="Context, links, acceptance — markdown ok"></textarea></label>
+    <div class="nt-row">
+      <label>Owner <select name="owner"><option value="unassigned">unassigned</option>{% for u in users %}<option value="{{ u.name }}" {{ 'selected' if u.name == user.name else '' }}>{{ u.name }}</option>{% endfor %}</select></label>
+      <label>Priority <select name="priority"><option value="low">low</option><option value="normal" selected>normal</option><option value="high">high</option></select></label>
+      <label>Due <input name="due" type="date"></label>
+    </div>
+    <label>Tags <input name="tags" placeholder="pipeline, deck — comma separated"></label>
+    <div class="nt-acts">
+      <button class="btn quiet" type="button" onclick="document.getElementById('new-task').close()">Cancel</button>
+      <button class="btn" type="submit">Create</button>
+    </div>
+  </form>
+</dialog>
+<style>
+  #new-task{border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);padding:0;width:min(520px,92vw)}
+  #new-task::backdrop{background:rgba(0,0,0,.45)}
+  .nt{display:flex;flex-direction:column;gap:12px;padding:20px 22px}
+  .nt h2{margin:0 0 4px;font-size:16px}
+  .nt label{display:flex;flex-direction:column;gap:4px;font:11px ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+  .nt input,.nt textarea,.nt select{font:14px system-ui,sans-serif;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:8px 10px;letter-spacing:0;text-transform:none}
+  .nt-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .nt-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+</style>
 {% include "_task_drawer.html" %}
 {% endblock %}

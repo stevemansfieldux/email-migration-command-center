@@ -1,0 +1,12 @@
+[Unit]
+Description=Command Centre nightly backup
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=cc
+Group=cc
+WorkingDirectory=/srv/cc/app
+Environment=PATH=/snap/bin:/usr/local/bin:/usr/bin:/bin
+Environment=CLOUDSDK_CONFIG=/srv/cc/app/.gcloud
+ExecStart=/srv/cc/app/deploy/backup.sh

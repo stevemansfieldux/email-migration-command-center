@@ -34,8 +34,12 @@ Make ingestion something that happens rather than something Steve does.
 
 **Deliverables**
 
+- ~~EMCC polls EMOH on a schedule; a transcript in `meetings/` becomes suggestions with no
+  click~~ — done 15 Sep (`EXTRACT_INTERVAL_MIN`)
+- ~~Nightly backup of the database off the VM~~ — done 15 Sep (`cc-backup.timer` → `gs://emcc-backups`)
+- ~~New task from the board~~ — done 15 Sep
 - One transcript route settled and documented; a drop folder or a webhook so a finished
-  recording arrives without a manual step
+  recording arrives in EMOH without a manual step (Google Meet → Drive → EMOH connector)
 - Re-ingesting the same meeting does not duplicate tasks (hash the transcript, match on title
   and date)
 - A meeting record with participants, date and a short generated summary, linked from each task

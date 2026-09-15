@@ -97,7 +97,7 @@ def extract(text: str, participants: list[str] | None = None, existing: list[dic
 
 # ---------- the pathway ----------
 
-STATUS: dict[str, Any] = {"running": False, "started": None, "finished": None, "done": 0, "total": 0, "current": None, "created": 0, "error": None, "log": []}
+STATUS: dict[str, Any] = {"running": False, "started": None, "finished": None, "done": 0, "total": 0, "current": None, "created": 0, "error": None, "log": [], "by": None, "next_auto": None}
 _lock = threading.Lock()
 
 
@@ -112,7 +112,7 @@ def run(limit: int | None = None, by: str = "system") -> dict:
     if not _lock.acquire(blocking=False):
         return {"started": False, "reason": "already running"}
     try:
-        STATUS.update(running=True, started=datetime.now(timezone.utc).isoformat(), finished=None, done=0, created=0, current=None, error=None, log=[])
+        STATUS.update(running=True, started=datetime.now(timezone.utc).isoformat(), finished=None, done=0, created=0, current=None, error=None, log=[], by=by)
         meetings = kb.list_meetings()
         with db.session() as s:
             seen = {r.path for r in s.exec(select(db.ExtractedMeeting)).all()}
@@ -161,4 +161,46 @@ def run_in_background(by: str) -> bool:
     if STATUS["running"]:
         return False
     threading.Thread(target=run, kwargs={"by": by}, daemon=True).start()
+    return True
+
+
+# ---------- scheduler ----------
+# Meetings land in EMOH on their own schedule; the board should notice without anyone clicking
+# "Fetch & extract". A daemon thread polls every EXTRACT_INTERVAL_MIN minutes (default 60,
+# 0 disables). The ledger makes a poll that finds nothing new cost one GitHub tree read.
+
+def configured() -> bool:
+    """True when both halves of the pathway have credentials: EMOH to read, Anthropic to extract."""
+    return bool(os.environ.get("EMOH_PATH") or os.environ.get("GITHUB_TOKEN")) and bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+
+def interval_min() -> int:
+    try:
+        return max(0, int(os.environ.get("EXTRACT_INTERVAL_MIN", "60")))
+    except ValueError:
+        return 60
+
+
+def _scheduler_loop(minutes: int) -> None:
+    import logging, time
+    log = logging.getLogger("uvicorn.error")
+    while True:
+        STATUS["next_auto"] = datetime.fromtimestamp(time.time() + minutes * 60, timezone.utc).isoformat()
+        time.sleep(minutes * 60)
+        if not configured():
+            continue
+        try:
+            kb.clear_cache()
+            r = run(by="scheduler")
+            if r.get("started") and r.get("meetings"):
+                log.info("extract scheduler: %s meeting(s), %s suggestion(s)", r["meetings"], r["created"])
+        except Exception as e:  # noqa: BLE001 — a bad poll must not kill the scheduler
+            log.warning("extract scheduler: %s", e)
+
+
+def start_scheduler() -> bool:
+    minutes = interval_min()
+    if not minutes:
+        return False
+    threading.Thread(target=_scheduler_loop, args=(minutes,), daemon=True, name="extract-scheduler").start()
     return True

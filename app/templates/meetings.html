@@ -19,11 +19,11 @@
   .empty{font-size:13.5px;color:var(--dim);max-width:640px;line-height:1.6}
 </style>
 {% if error %}<div class="note bad" style="max-width:860px;margin-bottom:16px">{{ error }}</div>{% endif %}
-<p class="sec">EMOH · {{ source }}</p>
+<p class="sec">EMOH · {{ source }}{% if auto_min %} · auto-checks every {{ auto_min }} min{% if status.next_auto %}, next {{ status.next_auto[11:16] }} UTC{% endif %}{% else %} · auto-check off{% endif %}</p>
 {% if status.running or status.finished %}
 <div class="run">
   {% if status.running %}<span>Extracting {{ status.done }}/{{ status.total }}{% if status.current %} — <code>{{ status.current }}</code>{% endif %}</span>
-  {% else %}<span>Last run finished {{ status.finished[:16] }} — {{ status.done }} meeting(s), {{ status.created }} suggestion(s){% if status.error %} — <span style="color:var(--bad)">{{ status.error }}</span>{% endif %}</span>{% endif %}
+  {% else %}<span>Last run ({{ status.by }}) finished {{ status.finished[:16] }} — {{ status.done }} meeting(s), {{ status.created }} suggestion(s){% if status.error %} — <span style="color:var(--bad)">{{ status.error }}</span>{% endif %}</span>{% endif %}
   {% for l in status.log %}<span><code>{{ l }}</code></span>{% endfor %}
 </div>
 {% if status.running %}<script>setTimeout(() => location.reload(), 4000)</script>{% endif %}
