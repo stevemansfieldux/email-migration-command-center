@@ -24,6 +24,9 @@ Live at https://34.89.78.186.sslip.io · API docs at `/docs`.
 - **Inbox** — mentions, assignments, and new suggestions for you. Plus a direct-message thread.
 - **Ask Claude** — an assistant with tools over the board and the transcripts.
 - **Account** — name, password, API key rotation, your open tasks.
+- **Ticket numbers** — every task is `FH-0001` style (derived from its id). `/?task=FH-0007` opens
+  the drawer on it, `/tasks/FH-0007` is its page, and every `/api/tasks/{id}` route takes the
+  ref or the bare number.
 - **An API** for all of it, documented live at `/docs`.
 
 ## EMOH — the ops hub

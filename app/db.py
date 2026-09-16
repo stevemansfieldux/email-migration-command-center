@@ -1,5 +1,6 @@
 """Storage. Postgres on Railway via DATABASE_URL, SQLite locally when it is unset."""
 import os
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -16,6 +17,22 @@ def _url() -> str:
     elif raw.startswith("postgresql://"):
         raw = raw.replace("postgresql://", "postgresql+psycopg://", 1)
     return raw
+
+
+REF_PREFIX = "FH"
+
+
+def ref(task_id: int) -> str:
+    """Ticket number shown to people: FH-0001. Derived from the row id, so it never collides."""
+    return f"{REF_PREFIX}-{task_id:04d}"
+
+
+def parse_ref(value) -> Optional[int]:
+    """Accepts 'FH-0001', 'fh-1', '#12' or '12'. None when it is none of those."""
+    if value is None:
+        return None
+    m = re.fullmatch(rf"\s*(?:#|(?:{REF_PREFIX}-?))?0*(\d+)\s*", str(value), re.I)
+    return int(m.group(1)) if m else None
 
 
 def now() -> datetime:

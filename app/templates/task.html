@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{{ t.title }} — EMCC{% endblock %}
-{% block headright %}<a class="mono" href="/" style="padding-bottom:14px;text-decoration:none;color:var(--dim)">← all tasks</a>{% endblock %}
+{% block title %}{{ ref(t.id) }} {{ t.title }} — EMCC{% endblock %}
+{% block headright %}<span class="mono">{{ ref(t.id) }}</span><a class="mono" href="/?task={{ ref(t.id) }}" style="text-decoration:none;color:var(--dim)">← board</a>{% endblock %}
 {% block main %}
 <style>
   .layout{display:grid;grid-template-columns:1fr;gap:26px;max-width:860px}

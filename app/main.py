@@ -6,7 +6,7 @@ import re
 import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -76,6 +76,7 @@ def nice_date(v: str) -> str:
 
 
 templates.env.filters["nice_date"] = nice_date
+templates.env.globals["ref"] = db.ref
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 
 
@@ -147,6 +148,17 @@ def _apply(task: db.Task, fields: dict, actor: str = "", s=None) -> None:
     task.updated_at = db.now()
 
 
+def _task_id(task_id: str) -> int:
+    """Path param: FH-0001 or 12. Anything else is a 404, not a validation error."""
+    tid = db.parse_ref(task_id)
+    if tid is None:
+        raise HTTPException(404, "no such task")
+    return tid
+
+
+TaskId = Annotated[int, Depends(_task_id)]
+
+
 def _get_task(s, task_id: int, allow_archived: bool = False) -> db.Task:
     t = s.get(db.Task, task_id)
     if not t or (t.archived_at and not allow_archived):
@@ -154,7 +166,7 @@ def _get_task(s, task_id: int, allow_archived: bool = False) -> db.Task:
     return t
 
 
-def tags_of(s, task_id: int) -> list[str]:
+def tags_of(s, task_id: TaskId) -> list[str]:
     return sorted(r.tag for r in s.exec(select(db.Tag).where(db.Tag.task_id == task_id)).all())
 
 
@@ -263,7 +275,7 @@ def account_key(request: Request, user: db.User = auth.PageUser):
 # ---------- board + suggestions ----------
 
 @app.get("/", response_class=HTMLResponse)
-def board(request: Request, tag: Optional[str] = None, task: Optional[int] = None, user: db.User = auth.PageUser):
+def board(request: Request, tag: Optional[str] = None, task: Optional[str] = None, user: db.User = auth.PageUser):
     with db.session() as s:
         q = select(db.Task).where(db.Task.archived_at.is_(None), db.Task.status.in_(STATUSES))
         tasks = s.exec(q.order_by(db.Task.updated_at.desc())).all()
@@ -280,7 +292,7 @@ def board(request: Request, tag: Optional[str] = None, task: Optional[int] = Non
         dup_titles = {t.dup_of: s.get(db.Task, t.dup_of).title for t in sugg if t.dup_of and s.get(db.Task, t.dup_of)}
     columns = {st: [t for t in tasks if t.status == st] for st in STATUSES}
     return page(request, "board.html", user, columns=columns, statuses=STATUSES, total=len(tasks), tab="tasks",
-                suggestions=sugg, tags=tags, ms=ms, cm=cm, dup_titles=dup_titles, tag=tag, open_task=task, users=users_all())
+                suggestions=sugg, tags=tags, ms=ms, cm=cm, dup_titles=dup_titles, tag=tag, open_task=db.parse_ref(task), users=users_all())
 
 
 @app.post("/tasks/new")
@@ -303,7 +315,7 @@ def task_new(title: str = Form(...), detail: str = Form(""), owner: str = Form("
 
 
 @app.post("/tasks/{task_id}/status")
-def set_status(task_id: int, status: str = Form(...), user: db.User = auth.PageUser):
+def set_status(task_id: TaskId, status: str = Form(...), user: db.User = auth.PageUser):
     with db.session() as s:
         t = _get_task(s, task_id); _apply(t, {"status": status}, user.name, s); s.add(t); s.commit()
     return RedirectResponse("/", status_code=303)
@@ -316,7 +328,7 @@ def _accept(s, t: db.Task, owner: Optional[str], actor: str = "") -> None:
 
 
 @app.post("/suggestions/{task_id}/accept")
-def suggest_accept(task_id: int, owner: str = Form(""), user: db.User = auth.PageUser):
+def suggest_accept(task_id: TaskId, owner: str = Form(""), user: db.User = auth.PageUser):
     with db.session() as s:
         t = _get_task(s, task_id)
         if t.status != "suggested":
@@ -326,14 +338,14 @@ def suggest_accept(task_id: int, owner: str = Form(""), user: db.User = auth.Pag
 
 
 @app.post("/suggestions/{task_id}/dismiss")
-def suggest_dismiss(task_id: int, user: db.User = auth.PageUser):
+def suggest_dismiss(task_id: TaskId, user: db.User = auth.PageUser):
     with db.session() as s:
         t = _get_task(s, task_id); t.status = "dismissed"; t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "dismissed"); s.commit()
     return RedirectResponse("/", status_code=303)
 
 
 @app.post("/suggestions/{task_id}/hide")
-def suggest_hide(task_id: int, user: db.User = auth.PageUser):
+def suggest_hide(task_id: TaskId, user: db.User = auth.PageUser):
     """'Not mine' — hidden for this user only; the other still sees it."""
     with db.session() as s:
         _get_task(s, task_id)
@@ -345,7 +357,7 @@ def suggest_hide(task_id: int, user: db.User = auth.PageUser):
 # ---------- task page ----------
 
 @app.get("/tasks/{task_id}", response_class=HTMLResponse)
-def task_page(request: Request, task_id: int, user: db.User = auth.PageUser):
+def task_page(request: Request, task_id: TaskId, user: db.User = auth.PageUser):
     with db.session() as s:
         t = _get_task(s, task_id, allow_archived=True)
         comments = s.exec(select(db.Comment).where(db.Comment.task_id == task_id).order_by(db.Comment.created_at)).all()
@@ -359,7 +371,7 @@ def task_page(request: Request, task_id: int, user: db.User = auth.PageUser):
 
 
 @app.post("/tasks/{task_id}")
-def task_update(task_id: int, title: str = Form(...), detail: str = Form(""), owner: str = Form("unassigned"),
+def task_update(task_id: TaskId, title: str = Form(...), detail: str = Form(""), owner: str = Form("unassigned"),
                 priority: str = Form("normal"), due: str = Form(""), status: str = Form("open"), user: db.User = auth.PageUser):
     with db.session() as s:
         t = _get_task(s, task_id)
@@ -375,7 +387,7 @@ def task_update(task_id: int, title: str = Form(...), detail: str = Form(""), ow
 
 
 @app.post("/tasks/{task_id}/comments")
-def add_comment_ui(task_id: int, body: str = Form(...), user: db.User = auth.PageUser):
+def add_comment_ui(task_id: TaskId, body: str = Form(...), user: db.User = auth.PageUser):
     if body.strip():
         with db.session() as s:
             t = _get_task(s, task_id)
@@ -386,14 +398,14 @@ def add_comment_ui(task_id: int, body: str = Form(...), user: db.User = auth.Pag
 
 
 @app.post("/tasks/{task_id}/archive")
-def archive_ui(task_id: int, user: db.User = auth.PageUser):
+def archive_ui(task_id: TaskId, user: db.User = auth.PageUser):
     with db.session() as s:
         t = _get_task(s, task_id); t.archived_at = db.now(); t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "archived"); s.commit()
     return RedirectResponse("/", status_code=303)
 
 
 @app.post("/tasks/{task_id}/restore")
-def restore_ui(task_id: int, user: db.User = auth.PageUser):
+def restore_ui(task_id: TaskId, user: db.User = auth.PageUser):
     with db.session() as s:
         t = _get_task(s, task_id, allow_archived=True); t.archived_at = None; t.updated_at = db.now(); s.add(t); s.commit()
     return RedirectResponse(f"/tasks/{task_id}", status_code=303)
@@ -402,7 +414,7 @@ def restore_ui(task_id: int, user: db.User = auth.PageUser):
 # ---------- tags ----------
 
 @app.post("/tasks/{task_id}/tags")
-def tag_add(task_id: int, tag: str = Form(...), user: db.User = auth.PageUser):
+def tag_add(task_id: TaskId, tag: str = Form(...), user: db.User = auth.PageUser):
     tag = norm_tag(tag)
     if len(tag) >= 2:
         with db.session() as s:
@@ -416,7 +428,7 @@ def tag_add(task_id: int, tag: str = Form(...), user: db.User = auth.PageUser):
 
 
 @app.post("/tasks/{task_id}/tags/remove")
-def tag_remove(task_id: int, tag: str = Form(...), user: db.User = auth.PageUser):
+def tag_remove(task_id: TaskId, tag: str = Form(...), user: db.User = auth.PageUser):
     with db.session() as s:
         if (r := s.get(db.Tag, (task_id, tag))):
             s.delete(r); s.commit()
@@ -446,7 +458,7 @@ def tag_description(tag: str, description: str = Form(""), user: db.User = auth.
 # ---------- milestones ----------
 
 @app.post("/tasks/{task_id}/milestones")
-def milestone_add(task_id: int, text: str = Form(...), user: db.User = auth.PageUser):
+def milestone_add(task_id: TaskId, text: str = Form(...), user: db.User = auth.PageUser):
     if text.strip():
         with db.session() as s:
             _get_task(s, task_id)
@@ -456,7 +468,7 @@ def milestone_add(task_id: int, text: str = Form(...), user: db.User = auth.Page
 
 
 @app.post("/tasks/{task_id}/milestones/{mid}/toggle")
-def milestone_toggle(task_id: int, mid: int, user: db.User = auth.PageUser):
+def milestone_toggle(task_id: TaskId, mid: int, user: db.User = auth.PageUser):
     with db.session() as s:
         m = s.get(db.Milestone, mid)
         if m and m.task_id == task_id:
@@ -466,7 +478,7 @@ def milestone_toggle(task_id: int, mid: int, user: db.User = auth.PageUser):
 
 
 @app.post("/tasks/{task_id}/milestones/{mid}/delete")
-def milestone_delete(task_id: int, mid: int, user: db.User = auth.PageUser):
+def milestone_delete(task_id: TaskId, mid: int, user: db.User = auth.PageUser):
     with db.session() as s:
         m = s.get(db.Milestone, mid)
         if m and m.task_id == task_id:
@@ -658,7 +670,7 @@ class TaskPatch(BaseModel):
 
 def _task_out(s, t: db.Task) -> dict:
     d, n = milestone_map(s, [t.id])[t.id]
-    return {**t.model_dump(), "tags": tags_of(s, t.id), "milestones_done": d, "milestones_total": n,
+    return {**t.model_dump(), "ref": db.ref(t.id), "tags": tags_of(s, t.id), "milestones_done": d, "milestones_total": n,
             "comment_count": comment_map(s, [t.id])[t.id]}
 
 
@@ -696,7 +708,7 @@ def api_create_task(payload: TaskIn, user: db.User = auth.CurrentUser):
 
 
 @app.get("/api/tasks/{task_id}", tags=["tasks"])
-def api_get_task(task_id: int, user: db.User = auth.CurrentUser):
+def api_get_task(task_id: TaskId, user: db.User = auth.CurrentUser):
     with db.session() as s:
         t = _get_task(s, task_id, allow_archived=True)
         comments = s.exec(select(db.Comment).where(db.Comment.task_id == task_id).order_by(db.Comment.created_at)).all()
@@ -705,21 +717,21 @@ def api_get_task(task_id: int, user: db.User = auth.CurrentUser):
 
 
 @app.get("/api/tasks/{task_id}/history", tags=["tasks"])
-def api_history(task_id: int, user: db.User = auth.CurrentUser):
+def api_history(task_id: TaskId, user: db.User = auth.CurrentUser):
     with db.session() as s:
         _get_task(s, task_id, allow_archived=True)
         return [e.model_dump() for e in s.exec(select(db.TaskEvent).where(db.TaskEvent.task_id == task_id).order_by(db.TaskEvent.created_at.desc())).all()]
 
 
 @app.patch("/api/tasks/{task_id}", tags=["tasks"])
-def api_patch_task(task_id: int, payload: TaskPatch, user: db.User = auth.CurrentUser):
+def api_patch_task(task_id: TaskId, payload: TaskPatch, user: db.User = auth.CurrentUser):
     with db.session() as s:
         t = _get_task(s, task_id); _apply(t, payload.model_dump(exclude_none=True), user.name, s); s.add(t); s.commit(); s.refresh(t)
         return _task_out(s, t)
 
 
 @app.delete("/api/tasks/{task_id}", tags=["tasks"])
-def api_delete_task(task_id: int, user: db.User = auth.CurrentUser):
+def api_delete_task(task_id: TaskId, user: db.User = auth.CurrentUser):
     """Archives. Nothing is hard-deleted; POST /restore brings it back."""
     with db.session() as s:
         t = _get_task(s, task_id); t.archived_at = db.now(); t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "archived"); s.commit()
@@ -727,7 +739,7 @@ def api_delete_task(task_id: int, user: db.User = auth.CurrentUser):
 
 
 @app.post("/api/tasks/{task_id}/restore", tags=["tasks"])
-def api_restore_task(task_id: int, user: db.User = auth.CurrentUser):
+def api_restore_task(task_id: TaskId, user: db.User = auth.CurrentUser):
     with db.session() as s:
         t = _get_task(s, task_id, allow_archived=True); t.archived_at = None; t.updated_at = db.now(); s.add(t); s.commit()
     return {"restored": task_id}
@@ -747,7 +759,7 @@ class AcceptIn(BaseModel):
 
 
 @app.post("/api/suggestions/{task_id}/accept", tags=["suggestions"])
-def api_accept(task_id: int, payload: AcceptIn = AcceptIn(), user: db.User = auth.CurrentUser):
+def api_accept(task_id: TaskId, payload: AcceptIn = AcceptIn(), user: db.User = auth.CurrentUser):
     with db.session() as s:
         t = _get_task(s, task_id)
         if t.status != "suggested":
@@ -757,14 +769,14 @@ def api_accept(task_id: int, payload: AcceptIn = AcceptIn(), user: db.User = aut
 
 
 @app.post("/api/suggestions/{task_id}/dismiss", tags=["suggestions"])
-def api_dismiss(task_id: int, user: db.User = auth.CurrentUser):
+def api_dismiss(task_id: TaskId, user: db.User = auth.CurrentUser):
     with db.session() as s:
         t = _get_task(s, task_id); t.status = "dismissed"; t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "dismissed"); s.commit()
     return {"dismissed": task_id}
 
 
 @app.post("/api/suggestions/{task_id}/hide", tags=["suggestions"])
-def api_hide(task_id: int, user: db.User = auth.CurrentUser):
+def api_hide(task_id: TaskId, user: db.User = auth.CurrentUser):
     with db.session() as s:
         _get_task(s, task_id)
         if not s.get(db.SuggestionHide, (task_id, user.id)):
@@ -778,14 +790,14 @@ class CommentIn(BaseModel):
 
 
 @app.get("/api/tasks/{task_id}/comments", tags=["comments"])
-def api_list_comments(task_id: int, user: db.User = auth.CurrentUser):
+def api_list_comments(task_id: TaskId, user: db.User = auth.CurrentUser):
     with db.session() as s:
         _get_task(s, task_id, allow_archived=True)
         return [c.model_dump() for c in s.exec(select(db.Comment).where(db.Comment.task_id == task_id).order_by(db.Comment.created_at)).all()]
 
 
 @app.post("/api/tasks/{task_id}/comments", status_code=201, tags=["comments"])
-def api_add_comment(task_id: int, payload: CommentIn, user: db.User = auth.CurrentUser):
+def api_add_comment(task_id: TaskId, payload: CommentIn, user: db.User = auth.CurrentUser):
     if not payload.body.strip():
         raise HTTPException(400, "empty comment")
     with db.session() as s:
@@ -824,7 +836,7 @@ def api_tags(user: db.User = auth.CurrentUser):
 
 
 @app.post("/api/tasks/{task_id}/tags", status_code=201, tags=["tags"])
-def api_tag_add(task_id: int, payload: TagIn, user: db.User = auth.CurrentUser):
+def api_tag_add(task_id: TaskId, payload: TagIn, user: db.User = auth.CurrentUser):
     tag = norm_tag(payload.tag)
     if len(tag) < 2:
         raise HTTPException(400, "tag too short")
@@ -839,7 +851,7 @@ def api_tag_add(task_id: int, payload: TagIn, user: db.User = auth.CurrentUser):
 
 
 @app.delete("/api/tasks/{task_id}/tags/{tag}", tags=["tags"])
-def api_tag_remove(task_id: int, tag: str, user: db.User = auth.CurrentUser):
+def api_tag_remove(task_id: TaskId, tag: str, user: db.User = auth.CurrentUser):
     with db.session() as s:
         if (r := s.get(db.Tag, (task_id, tag))):
             s.delete(r); log_event(s, task_id, user.name, "tag", f"-{tag}"); s.commit()
@@ -864,7 +876,7 @@ class MilestoneIn(BaseModel):
 
 
 @app.post("/api/tasks/{task_id}/milestones", status_code=201, tags=["milestones"])
-def api_milestone_add(task_id: int, payload: MilestoneIn, user: db.User = auth.CurrentUser):
+def api_milestone_add(task_id: TaskId, payload: MilestoneIn, user: db.User = auth.CurrentUser):
     if not payload.text.strip():
         raise HTTPException(400, "empty milestone")
     with db.session() as s:

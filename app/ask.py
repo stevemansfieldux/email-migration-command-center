@@ -48,27 +48,27 @@ def list_tasks(status: Optional[str] = None, owner: Optional[str] = None) -> str
     if not rows:
         return "No tasks match."
     return "\n".join(
-        f"#{t.id} [{t.status}] {t.title} — {t.owner}, {t.priority}"
+        f"{db.ref(t.id)} [{t.status}] {t.title} — {t.owner}, {t.priority}"
         + (f", due {t.due}" if t.due else "") + f" (source: {t.source})"
         for t in rows
     )
 
 
 @beta_tool
-def get_task(task_id: int) -> str:
+def get_task(task_id: str) -> str:
     """Read one task in full, including its detail, quote, and comments.
 
     Args:
-        task_id: the task's numeric id.
+        task_id: the ticket number, e.g. FH-0007 (a bare number also works).
     """
     with db.session() as s:
-        t = s.get(db.Task, task_id)
+        t = s.get(db.Task, db.parse_ref(task_id) or 0)
         if not t:
-            return f"No task #{task_id}."
+            return f"No task {task_id}."
         comments = s.exec(
             select(db.Comment).where(db.Comment.task_id == task_id).order_by(db.Comment.created_at)
         ).all()
-    out = [f"#{t.id} {t.title}", f"status: {t.status} · owner: {t.owner} · priority: {t.priority}"
+    out = [f"{db.ref(t.id)} {t.title}", f"status: {t.status} · owner: {t.owner} · priority: {t.priority}"
            + (f" · due {t.due}" if t.due else ""), f"source: {t.source} {t.source_ref}".strip(), "", t.detail or "(no detail)"]
     if comments:
         out += ["", "comments:"] + [f"- {c.author} ({c.created_at:%d %b %H:%M}): {c.body}" for c in comments]
@@ -114,16 +114,16 @@ def create_task(title: str, detail: str = "", owner: str = "unassigned", priorit
         s.add(t)
         s.commit()
         s.refresh(t)
-    return f"Created #{t.id} {t.title}"
+    return f"Created {db.ref(t.id)} {t.title}"
 
 
 @beta_tool
-def update_task(task_id: int, status: Optional[str] = None, owner: Optional[str] = None,
+def update_task(task_id: str, status: Optional[str] = None, owner: Optional[str] = None,
                 priority: Optional[str] = None, due: Optional[str] = None, title: Optional[str] = None) -> str:
     """Change fields on an existing task. Only use this when the user has clearly asked for the change.
 
     Args:
-        task_id: the task's numeric id.
+        task_id: the ticket number, e.g. FH-0007 (a bare number also works).
         status: open, doing, blocked, or done.
         owner: new owner.
         priority: low, normal, or high.
@@ -133,9 +133,9 @@ def update_task(task_id: int, status: Optional[str] = None, owner: Optional[str]
     if status and status not in STATUSES:
         return f"status must be one of {STATUSES}"
     with db.session() as s:
-        t = s.get(db.Task, task_id)
+        t = s.get(db.Task, db.parse_ref(task_id) or 0)
         if not t:
-            return f"No task #{task_id}."
+            return f"No task {task_id}."
         changed = []
         for k, v in (("status", status), ("owner", owner), ("priority", priority), ("title", title)):
             if v is not None:
@@ -145,23 +145,24 @@ def update_task(task_id: int, status: Optional[str] = None, owner: Optional[str]
         t.updated_at = db.now()
         s.add(t)
         s.commit()
-    return f"Updated #{task_id}: " + (", ".join(changed) or "nothing changed")
+    return f"Updated {task_id}: " + (", ".join(changed) or "nothing changed")
 
 
 @beta_tool
-def add_comment(task_id: int, body: str) -> str:
+def add_comment(task_id: str, body: str) -> str:
     """Add a comment to a task, attributed to Claude. Only use this when the user has clearly asked.
 
     Args:
-        task_id: the task's numeric id.
+        task_id: the ticket number, e.g. FH-0007 (a bare number also works).
         body: the comment text.
     """
+    tid = db.parse_ref(task_id) or 0
     with db.session() as s:
-        if not s.get(db.Task, task_id):
-            return f"No task #{task_id}."
-        s.add(db.Comment(task_id=task_id, author="Claude", body=body.strip()))
+        if not s.get(db.Task, tid):
+            return f"No task {task_id}."
+        s.add(db.Comment(task_id=tid, author="Claude", body=body.strip()))
         s.commit()
-    return f"Commented on #{task_id}"
+    return f"Commented on {task_id}"
 
 
 TOOLS = [list_tasks, get_task, search_sources, create_task, update_task, add_comment]

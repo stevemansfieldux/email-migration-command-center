@@ -35,7 +35,7 @@ async function openTask(id) {
   showPaneTab('brief');
   $('task-pane').classList.add('open'); $('task-backdrop').classList.add('open');
   $('task-pane').setAttribute('aria-hidden', 'false');
-  const u = new URL(location); u.searchParams.set('task', id); history.replaceState(null, '', u);
+  const u = new URL(location); u.searchParams.set('task', paneTask?.ref || id); history.replaceState(null, '', u);
 }
 
 function closeTask() {
@@ -49,8 +49,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && paneTaskId
 // ---------- render ----------
 
 function renderPane(t) {
-  $('pane-ref').textContent = `#${t.id}`;
-  $('pane-page').href = `/tasks/${t.id}`;
+  $('pane-ref').textContent = t.ref || `#${t.id}`;
+  $('pane-page').href = `/tasks/${t.ref || t.id}`;
   $('pane-title').textContent = t.title;
   paintStatus(t.status); paintPrio(t.priority); paintDue(t.due); paintOwner(t.owner || t.suggested_owner || 'unassigned');
   $('sel-status').value = t.status; $('sel-prio').value = t.priority; $('inp-due').value = t.due || ''; $('sel-owner').value = t.owner || 'unassigned';
