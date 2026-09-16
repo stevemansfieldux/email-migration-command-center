@@ -116,6 +116,7 @@ function reflectToCard(t) {
   card.querySelector('.title a').textContent = t.title;
   const col = document.querySelector(`.col[data-status="${t.status}"]`);
   if (col && card.parentElement !== col) { col.insertBefore(card, col.querySelector('.empty')); if (typeof recount === 'function') recount(); }
+  card.dataset.owner = t.owner || '';
   const meta = card.querySelector('.meta');
   if (meta) {
     const own = meta.querySelector('.own'); const name = t.owner || 'unassigned';
@@ -127,6 +128,7 @@ function reflectToCard(t) {
     meta.querySelectorAll('.chip').forEach(c => c.remove());
     (t.tags || []).forEach(tg => { const a = document.createElement('a'); a.className = 'chip'; a.href = `/?tag=${tg}`; a.textContent = `#${tg}`; meta.appendChild(a); });
   }
+  if (typeof applyOwnerFilter === 'function') { const on = document.querySelector('#owner-seg button.on'); applyOwnerFilter(on ? on.dataset.owner : ''); }
 }
 
 // ---------- saves ----------
