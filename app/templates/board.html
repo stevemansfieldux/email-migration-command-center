@@ -136,32 +136,82 @@ window.applyOwnerFilter = (who) => {
   });
 })();
 </script>
-<dialog id="new-task">
-  <form method="post" action="/tasks/new" class="nt">
-    <h2>New task</h2>
-    <label>Title <input name="title" required autofocus maxlength="200" placeholder="What needs doing"></label>
-    <label>Detail <textarea name="detail" rows="4" placeholder="Context, links, acceptance — markdown ok"></textarea></label>
-    <div class="nt-row">
-      <label>Owner <select name="owner"><option value="unassigned">unassigned</option>{% for u in users %}<option value="{{ u.name }}" {{ 'selected' if u.name == user.name else '' }}>{{ u.name }}</option>{% endfor %}</select></label>
-      <label>Priority <select name="priority"><option value="low">low</option><option value="normal" selected>normal</option><option value="high">high</option></select></label>
-      <label>Due <input name="due" type="date"></label>
+<dialog id="new-task" aria-labelledby="nt-h">
+  <form method="post" action="/tasks/new" class="nt" id="nt-form">
+    <div class="nt-head">
+      <h2 id="nt-h">New task</h2>
+      <button class="nt-x" type="button" aria-label="Close" onclick="document.getElementById('new-task').close()">✕</button>
     </div>
-    <label>Tags <input name="tags" placeholder="pipeline, deck — comma separated"></label>
-    <div class="nt-acts">
+    <div class="nt-body">
+      <label class="nt-f"><span class="nt-l">Title</span><input class="nt-title" type="text" name="title" required maxlength="200" placeholder="What needs doing" autocomplete="off"></label>
+      <label class="nt-f"><span class="nt-l">Detail</span><textarea name="detail" rows="4" placeholder="Context, links, what done looks like. Markdown is fine."></textarea></label>
+      <div class="nt-row">
+        <div class="nt-f"><span class="nt-l">Owner</span>
+          <div class="nt-seg" role="radiogroup" aria-label="Owner">
+            {% for u in users %}<label><input type="radio" name="owner" value="{{ u.name }}" {{ 'checked' if u.name == user.name else '' }}><span><i class="avatar">{{ u.name[0] }}</i>{{ u.name }}</span></label>{% endfor %}
+            <label><input type="radio" name="owner" value="unassigned"><span>Unassigned</span></label>
+          </div>
+        </div>
+        <div class="nt-f"><span class="nt-l">Priority</span>
+          <div class="nt-seg" role="radiogroup" aria-label="Priority">
+            <label><input type="radio" name="priority" value="low"><span>Low</span></label>
+            <label><input type="radio" name="priority" value="normal" checked><span>Normal</span></label>
+            <label><input type="radio" name="priority" value="high"><span class="hi">High</span></label>
+          </div>
+        </div>
+      </div>
+      <div class="nt-row">
+        <label class="nt-f"><span class="nt-l">Due</span><input type="date" name="due"></label>
+        <label class="nt-f"><span class="nt-l">Tags</span><input type="text" name="tags" placeholder="pipeline, deck" autocomplete="off"></label>
+      </div>
+    </div>
+    <div class="nt-foot">
+      <span class="nt-hint"><kbd>⌘</kbd><kbd>↩</kbd> to create</span>
       <button class="btn quiet" type="button" onclick="document.getElementById('new-task').close()">Cancel</button>
-      <button class="btn" type="submit">Create</button>
+      <button class="btn" type="submit">Create task</button>
     </div>
   </form>
 </dialog>
 <style>
-  #new-task{border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:var(--surface-raised);color:var(--text-primary);padding:0;width:min(520px,92vw);box-shadow:var(--shadow-lift)}
-  #new-task::backdrop{background:rgba(0,0,0,.45)}
-  .nt{display:flex;flex-direction:column;gap:12px;padding:20px 22px}
-  .nt h2{margin:0 0 4px;font-size:18px;line-height:24px;font-weight:600}
-  .nt label{display:flex;flex-direction:column;gap:4px;font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
-  .nt input,.nt textarea,.nt select{font:14px var(--font-ui);letter-spacing:0;text-transform:none}
-  .nt-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-  .nt-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+  #new-task{border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:var(--surface-raised);color:var(--text-primary);padding:0;width:min(560px,92vw);box-shadow:var(--shadow-lift)}
+  #new-task::backdrop{background:rgba(15,17,22,.45)}
+  .nt{display:flex;flex-direction:column}
+  .nt-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 0}
+  .nt h2{margin:0;font-size:18px;line-height:24px;font-weight:600;letter-spacing:-.01em}
+  .nt-x{width:28px;height:28px;border:0;border-radius:var(--radius-sm);background:transparent;color:var(--text-muted);cursor:pointer;font-size:13px}
+  .nt-x:hover{background:var(--surface-hover);color:var(--text-primary)}
+  .nt-body{display:flex;flex-direction:column;gap:16px;padding:20px 24px 24px}
+  .nt-f{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .nt-l{font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+  .nt input[type=text],.nt input[type=date],.nt textarea{width:100%;height:36px;padding:0 12px;font:14px/20px var(--font-ui);color:var(--text-primary);background:var(--surface-raised);border:1px solid var(--border-subtle);border-radius:var(--radius-md);outline:none;transition:border-color .12s var(--ease),box-shadow .12s var(--ease)}
+  .nt textarea{height:auto;padding:8px 12px;resize:vertical;min-height:88px}
+  .nt input.nt-title{font-size:16px;font-weight:500;height:40px}
+  .nt input:hover,.nt textarea:hover{border-color:var(--border-strong)}
+  .nt input:focus,.nt textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-subtle)}
+  .nt input::placeholder,.nt textarea::placeholder{color:var(--n9)}
+  .nt-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .nt-seg{display:flex;background:var(--surface-sunken);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:2px;gap:2px;height:36px}
+  .nt-seg label{flex:1;display:flex;position:relative;margin:0}
+  .nt-seg input{position:absolute;opacity:0;inset:0;margin:0;cursor:pointer}
+  .nt-seg span{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:6px;font:500 13px/30px var(--font-ui);color:var(--text-muted);white-space:nowrap;padding:0 8px;transition:background .12s var(--ease),color .12s var(--ease)}
+  .nt-seg span .avatar{width:18px;height:18px;line-height:18px;font-size:10px;font-style:normal}
+  .nt-seg span.hi{gap:5px} .nt-seg span.hi::before{border-bottom-width:7px;border-left-width:4.5px;border-right-width:4.5px}
+  .nt-seg label:hover span{color:var(--text-primary)}
+  .nt-seg input:checked+span{background:var(--surface-raised);color:var(--text-primary);box-shadow:var(--shadow-raised)}
+  .nt-seg input:focus-visible+span{box-shadow:0 0 0 2px var(--surface-raised),0 0 0 4px var(--accent)}
+  .nt-foot{display:flex;align-items:center;gap:8px;padding:16px 24px;border-top:1px solid var(--border-subtle);background:var(--surface-sunken);border-radius:0 0 var(--radius-lg) var(--radius-lg)}
+  .nt-hint{margin-right:auto;font:12px/16px var(--font-ui);color:var(--text-muted);display:inline-flex;gap:3px;align-items:center}
+  .nt-hint kbd{font:11px/18px var(--font-mono);padding:0 5px;border:1px solid var(--border-subtle);border-bottom-width:2px;border-radius:4px;background:var(--surface-raised);color:var(--text-secondary)}
+  @media (max-width:560px){.nt-row{grid-template-columns:1fr}}
 </style>
+<script>
+  (() => {
+    const d = document.getElementById('new-task'), f = document.getElementById('nt-form');
+    d.addEventListener('close', () => f.reset());
+    f.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); f.requestSubmit(); } });
+    // Default the owner to whoever the board is filtered to, when it's a person.
+    d.addEventListener('toggle', () => { if (!d.open) return; const on = document.querySelector('#owner-seg button.on'); const r = on && f.querySelector(`input[name=owner][value="${on.dataset.owner}"]`); if (r) r.checked = true; f.title.focus(); });
+  })();
+</script>
 {% include "_task_drawer.html" %}
 {% endblock %}
