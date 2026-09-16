@@ -161,6 +161,14 @@ def milestone_map(s, task_ids: list[int]) -> dict[int, tuple[int, int]]:
     return out
 
 
+def comment_map(s, task_ids: list[int]) -> dict[int, int]:
+    out = {i: 0 for i in task_ids}
+    if task_ids:
+        for c in s.exec(select(db.Comment).where(db.Comment.task_id.in_(task_ids))).all():
+            out[c.task_id] += 1
+    return out
+
+
 def norm_tag(t: str) -> str:
     t = re.sub(r"[^a-z0-9-]+", "-", t.strip().lower()).strip("-")
     return t[:40]
@@ -253,11 +261,11 @@ def board(request: Request, tag: Optional[str] = None, task: Optional[int] = Non
         sugg = [t for t in s.exec(select(db.Task).where(db.Task.status == "suggested", db.Task.archived_at.is_(None)).order_by(db.Task.created_at.desc())).all()
                 if t.id not in hidden and t.suggested_owner in (user.name, "unassigned", "")]
         ids = [t.id for t in tasks] + [t.id for t in sugg]
-        tags, ms = tag_map(s, ids), milestone_map(s, ids)
+        tags, ms, cm = tag_map(s, ids), milestone_map(s, ids), comment_map(s, ids)
         dup_titles = {t.dup_of: s.get(db.Task, t.dup_of).title for t in sugg if t.dup_of and s.get(db.Task, t.dup_of)}
     columns = {st: [t for t in tasks if t.status == st] for st in STATUSES}
     return page(request, "board.html", user, columns=columns, statuses=STATUSES, total=len(tasks), tab="tasks",
-                suggestions=sugg, tags=tags, ms=ms, dup_titles=dup_titles, tag=tag, open_task=task, users=users_all())
+                suggestions=sugg, tags=tags, ms=ms, cm=cm, dup_titles=dup_titles, tag=tag, open_task=task, users=users_all())
 
 
 @app.post("/tasks/new")
@@ -635,7 +643,8 @@ class TaskPatch(BaseModel):
 
 def _task_out(s, t: db.Task) -> dict:
     d, n = milestone_map(s, [t.id])[t.id]
-    return {**t.model_dump(), "tags": tags_of(s, t.id), "milestones_done": d, "milestones_total": n}
+    return {**t.model_dump(), "tags": tags_of(s, t.id), "milestones_done": d, "milestones_total": n,
+            "comment_count": comment_map(s, [t.id])[t.id]}
 
 
 @app.get("/api/tasks", tags=["tasks"])

@@ -119,6 +119,7 @@ function reflectToCard(t) {
     const own = meta.querySelector('span:first-child'); if (own) own.textContent = t.owner || 'unassigned';
     let hi = meta.querySelector('.hi'); if (t.priority === 'high' && !hi) { hi = document.createElement('span'); hi.className = 'hi'; hi.textContent = 'high'; own.after(hi); } else if (t.priority !== 'high' && hi) hi.remove();
     let prog = meta.querySelector('.prog'); if (t.milestones_total) { if (!prog) { prog = document.createElement('span'); prog.className = 'prog'; meta.appendChild(prog); } prog.textContent = `${t.milestones_done}/${t.milestones_total}`; } else if (prog) prog.remove();
+    const cc = meta.querySelector('.cc'); if (cc) { const n = t.comment_count ?? (t.comments || []).length; cc.lastChild.textContent = n; cc.hidden = !n; cc.title = `${n} comment${n === 1 ? '' : 's'}`; }
     meta.querySelectorAll('.chip').forEach(c => c.remove());
     (t.tags || []).forEach(tg => { const a = document.createElement('a'); a.className = 'chip'; a.href = `/?tag=${tg}`; a.textContent = `#${tg}`; meta.appendChild(a); });
   }
@@ -153,7 +154,7 @@ async function paneDeleteMilestone(id) { try { await api('DELETE', `/api/milesto
 
 async function paneAddComment(ev) {
   ev.preventDefault(); const ta = $('pane-cbody'); const v = ta.value.trim(); if (!v) return false;
-  try { await api('POST', `/api/tasks/${paneTaskId}/comments`, { body: v }); ta.value = ''; paneTask = await api('GET', `/api/tasks/${paneTaskId}`); renderComments(paneTask.comments); $('pane-comments').scrollIntoView({ block: 'end' }); }
+  try { await api('POST', `/api/tasks/${paneTaskId}/comments`, { body: v }); ta.value = ''; paneTask = await api('GET', `/api/tasks/${paneTaskId}`); renderComments(paneTask.comments); reflectToCard(paneTask); $('pane-comments').scrollIntoView({ block: 'end' }); }
   catch (e) { alert(`Comment failed: ${e.message}`); }
   return false;
 }
