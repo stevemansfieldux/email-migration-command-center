@@ -19,8 +19,12 @@
   .seg button:hover{color:var(--text-primary)}
   .seg button.on{background:var(--surface-raised);color:var(--text-primary);box-shadow:var(--shadow-raised)}
   .task[hidden]{display:none}
-  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
-  .col{display:flex;flex-direction:column;gap:12px;min-width:0;min-height:260px;background:var(--surface-sunken);border-radius:var(--radius-lg);padding:14px;transition:background .12s var(--ease)}
+  .cols{display:flex;gap:14px;overflow-x:auto;overscroll-behavior-x:contain;padding-bottom:10px;margin:0 -24px;padding-left:24px;padding-right:24px}
+  /* Four columns fill the width. A fifth (Suggested) does not squeeze them: each keeps ~90% of a
+     quarter, so the extra column overflows and peeks in from the right — scroll to it. */
+  .col{flex:1 1 0;min-width:max(220px,calc((100% - 42px) / 4 * .9))}
+  .col[hidden]{display:none}
+  .col{display:flex;flex-direction:column;gap:12px;min-height:260px;background:var(--surface-sunken);border-radius:var(--radius-lg);padding:14px;transition:background .12s var(--ease)}
   .col.over{background:var(--accent-subtle)}
   .colhead{display:flex;align-items:center;gap:8px;padding:2px 2px 4px}
   .colname{font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
@@ -97,6 +101,7 @@ window.recount = () => document.querySelectorAll('.col').forEach(c => { const n 
 window.applyOwnerFilter = (who) => {
   document.querySelectorAll('.task').forEach(el => { el.hidden = !!who && el.dataset.owner !== who; });
   document.querySelectorAll('#owner-seg button').forEach(b => b.classList.toggle('on', b.dataset.owner === who));
+  const sgCol = document.querySelector('.col[data-status="suggested"]'); if (sgCol) { const was = sgCol.hidden; sgCol.hidden = !document.querySelector('.task.sg:not([hidden])'); if (was && !sgCol.hidden) sgCol.parentElement.scrollLeft = 0; }
   const shown = document.querySelectorAll('.task:not(.sg):not([hidden])').length, total = document.querySelectorAll('.task:not(.sg)').length;
   const c = document.querySelector('.count'); if (c) c.firstChild.textContent = (who ? `${shown} of ${total}` : total) + (total === 1 ? ' task' : ' tasks');
   recount();
