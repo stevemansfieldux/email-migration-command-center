@@ -10,12 +10,12 @@
 <style>
   .ml{max-width:860px;display:flex;flex-direction:column;gap:8px}
   .mr{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:11px 13px;display:grid;grid-template-columns:96px 1fr auto;gap:12px;align-items:center}
-  .mr .d{font:12px ui-monospace,Menlo,monospace;color:var(--dim)} .mr .t a{color:inherit;text-decoration:none;font-weight:600} .mr .t a:hover{text-decoration:underline}
-  .mr .p{font:11px ui-monospace,Menlo,monospace;color:var(--dim);margin-top:2px}
-  .st{font:11px ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .mr .d{font:12px var(--font-mono);color:var(--dim)} .mr .t a{color:inherit;text-decoration:none;font-weight:600} .mr .t a:hover{text-decoration:underline}
+  .mr .p{font:11px var(--font-mono);color:var(--dim);margin-top:2px}
+  .st{font:11px var(--font-mono);letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:6px;white-space:nowrap}
   .st i{width:6px;height:6px;border-radius:50%;display:inline-block;background:var(--dim)} .st.ok{color:var(--done)} .st.ok i{background:var(--done)}
   .run{max-width:860px;margin-bottom:16px;font-size:13px;color:var(--dim);display:flex;flex-direction:column;gap:3px}
-  .run code{font:12px ui-monospace,Menlo,monospace}
+  .run code{font:12px var(--font-mono)}
   .empty{font-size:13.5px;color:var(--dim);max-width:640px;line-height:1.6}
 </style>
 {% if error %}<div class="note bad" style="max-width:860px;margin-bottom:16px">{{ error }}</div>{% endif %}

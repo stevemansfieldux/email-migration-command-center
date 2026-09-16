@@ -1,35 +1,40 @@
 {% extends "base.html" %}
 {% block title %}Tasks — EMCC{% endblock %}
-{% block headright %}<button class="btn" type="button" style="padding:5px 12px;font-size:12px" onclick="document.getElementById('new-task').showModal()">+ New task</button> <span class="count">{{ total }} task{{ '' if total == 1 else 's' }}{% if tag %} · #{{ tag }} <a href="/" class="mono" style="color:var(--accent)">×</a>{% endif %}</span>{% endblock %}
+{% block headright %}<span class="count">{{ total }} task{{ '' if total == 1 else 's' }}{% if tag %} · #{{ tag }} <a href="/" style="color:var(--accent-text);text-decoration:none">×</a>{% endif %}</span>{% endblock %}
+{% block headaction %}<button class="btn" type="button" onclick="document.getElementById('new-task').showModal()">+ New task</button>{% endblock %}
 {% block main %}
 <style>
-  .sugg{margin-bottom:26px;display:flex;flex-direction:column;gap:8px}
-  .sugg .row{background:var(--card);border:1px dashed var(--line);border-radius:6px;padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:start}
+  .sugg{margin-bottom:24px;display:flex;flex-direction:column;gap:8px}
+  .sugg .row{background:var(--surface-raised);border:1px dashed var(--border-strong);border-radius:var(--radius-md);padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:start}
   .sugg .t{font-size:14px;font-weight:600}
-  .sugg .q{font-size:12.5px;color:var(--dim);font-style:italic;border-left:2px solid var(--line);padding-left:8px;margin-top:4px}
-  .sugg .m{font:11px ui-monospace,Menlo,monospace;color:var(--dim);margin-top:5px;display:flex;gap:10px;flex-wrap:wrap}
-  .sugg .dup{color:var(--blocked)}
+  .sugg .q{font-size:13px;color:var(--text-muted);font-style:italic;border-left:2px solid var(--border-subtle);padding-left:8px;margin-top:4px}
+  .sugg .m{font:12px/16px var(--font-mono);color:var(--text-muted);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap}
+  .sugg .dup{color:var(--warning)}
   .sugg .acts{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
   .sugg .acts form{display:inline-flex;gap:6px;align-items:center}
-  .sugg select{font:11px ui-monospace,Menlo,monospace;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:4px;padding:3px 5px}
-  .sugg .acts button{padding:5px 10px;font-size:12px;border-radius:4px;cursor:pointer}
-  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
-  .col{display:flex;flex-direction:column;gap:8px;min-width:0;min-height:140px;border-radius:8px;padding:2px;transition:background .12s}
-  .col.over{background:color-mix(in srgb,var(--accent) 10%,transparent)}
-  .colhead{display:flex;align-items:center;gap:7px;padding:0 2px 4px}
-  .colname{font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim)}
-  .task{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:11px 12px;display:flex;flex-direction:column;gap:6px;cursor:grab}
-  .task:active{cursor:grabbing} .task.dragging{opacity:.45} .task.sample{border-style:dashed}
-  .title{font-size:14px;font-weight:600;letter-spacing:-.005em;overflow-wrap:anywhere}
-  .title a{color:inherit;text-decoration:none} .title a:hover{text-decoration:underline}
-  .detail{font-size:12.5px;color:var(--dim);white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-  .meta{display:flex;flex-wrap:wrap;gap:4px 10px;font:11px ui-monospace,Menlo,monospace;color:var(--dim);align-items:center}
-  .hi{color:var(--blocked)}
-  .prog{font:11px ui-monospace,Menlo,monospace;color:var(--done)}
-  .cc{display:inline-flex;align-items:center;gap:3px;color:var(--dim)} .cc[hidden]{display:none}
-  .task{cursor:pointer}
-  .empty{font-size:13px;color:var(--dim);padding:10px 2px}
-  @media (prefers-reduced-motion:reduce){.col{transition:none}}
+  .sugg select{width:auto;font:12px var(--font-mono);padding:3px 6px;height:28px}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+  .col{display:flex;flex-direction:column;gap:12px;min-width:0;min-height:260px;background:var(--surface-sunken);border-radius:var(--radius-lg);padding:14px;transition:background .12s var(--ease)}
+  .col.over{background:var(--accent-subtle)}
+  .colhead{display:flex;align-items:center;gap:8px;padding:2px 2px 4px}
+  .colname{font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+  .task{background:var(--surface-raised);border:1px solid transparent;border-radius:var(--radius-md);padding:14px 16px;display:flex;flex-direction:column;gap:8px;cursor:pointer;
+        box-shadow:var(--shadow-raised);transition:box-shadow .16s var(--ease),transform .16s var(--ease)}
+  .task:hover{box-shadow:var(--shadow-lift);transform:translateY(-1px)}
+  .task:active{cursor:grabbing} .task.dragging{opacity:.45} .task.sample{border-style:dashed;border-color:var(--border-strong)}
+  .title{font-size:15px;line-height:22px;font-weight:600;letter-spacing:-.005em;overflow-wrap:anywhere}
+  .title a{color:inherit;text-decoration:none}
+  .detail{font-size:13px;line-height:20px;color:var(--text-secondary);white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .meta{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--text-secondary);align-items:center;border-top:1px solid var(--border-subtle);padding-top:10px;margin-top:2px}
+  .meta .own{display:inline-flex;align-items:center;gap:7px}
+  .meta .avatar{width:20px;height:20px;line-height:20px;font-size:10px}
+  .hi{color:var(--warning);display:inline-flex;align-items:center;gap:5px} .hi::before{content:"";width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid var(--warning)}
+  .due{font-variant-numeric:tabular-nums} .due small{font-size:inherit;margin-left:5px} .due.late{color:var(--danger);font-weight:600} .due.late small{font-weight:400;color:var(--text-secondary)}
+  .prog,.cc{font:13px var(--font-ui);color:var(--text-secondary)} .prog b{font:12px var(--font-mono);font-weight:400}
+  .cc{display:inline-flex;align-items:center;gap:5px} .cc[hidden]{display:none}
+  .meta .chip{margin-left:-6px}
+  .empty{font-size:14px;color:var(--text-muted);text-align:center;padding:36px 8px 0}
+  @media (prefers-reduced-motion:reduce){.col,.task{transition:none}}
 </style>
 
 {% if suggestions %}
@@ -70,16 +75,16 @@
       {% set body = t.detail.split('\n\n> ')[0] %}
       {% if body %}<div class="detail">{{ body }}</div>{% endif %}
       <div class="meta">
-        <span>{{ t.owner }}</span>
-        {% if t.priority == 'high' %}<span class="hi">high</span>{% endif %}
-        {% if t.due %}<span>due {{ t.due }}</span>{% endif %}
-        {% if ms[t.id][1] %}<span class="prog">{{ ms[t.id][0] }}/{{ ms[t.id][1] }}</span>{% endif %}
-        <span class="cc" {% if not cm[t.id] %}hidden{% endif %} title="{{ cm[t.id] }} comment{{ '' if cm[t.id] == 1 else 's' }}"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v6a1.5 1.5 0 0 1-1.5 1.5H6l-3.3 2.6A.4.4 0 0 1 2 13.3V3.5Z" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>{{ cm[t.id] }}</span>
+        <span class="own"><span class="avatar">{{ (t.owner or 'unassigned')[0]|upper }}</span>{{ t.owner or 'unassigned' }}</span>
+        {% if t.priority == 'high' %}<span class="hi">High</span>{% endif %}
+        {% if t.due %}{% set late = t.due < today and st != 'done' %}<span class="due {{ 'late' if late else '' }}">{{ 'Overdue' if late else 'Due' }}<small>{{ t.due|nice_date }}</small></span>{% endif %}
+        {% if ms[t.id][1] %}<span class="prog"><b>{{ ms[t.id][0] }}/{{ ms[t.id][1] }}</b> subtasks</span>{% endif %}
+        <span class="cc" {% if not cm[t.id] %}hidden{% endif %}><b class="n">{{ cm[t.id] }}</b> comment{{ '' if cm[t.id] == 1 else 's' }}</span>
         {% for tg in tags[t.id] %}<a class="chip" href="/?tag={{ tg }}">#{{ tg }}</a>{% endfor %}
       </div>
     </div>
     {% endfor %}
-    <div class="empty" {% if columns[st] %}hidden{% endif %}>Nothing here.</div>
+    <div class="empty" {% if columns[st] %}hidden{% endif %}>{{ {'open':'Nothing open.','doing':'No tasks in progress.','blocked':'Nothing blocked.','done':'Nothing done yet.'}[st] }}</div>
   </div>
   {% endfor %}
 </div>
@@ -122,12 +127,12 @@ window.recount = () => document.querySelectorAll('.col').forEach(c => { const n 
   </form>
 </dialog>
 <style>
-  #new-task{border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);padding:0;width:min(520px,92vw)}
+  #new-task{border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:var(--surface-raised);color:var(--text-primary);padding:0;width:min(520px,92vw);box-shadow:var(--shadow-lift)}
   #new-task::backdrop{background:rgba(0,0,0,.45)}
   .nt{display:flex;flex-direction:column;gap:12px;padding:20px 22px}
-  .nt h2{margin:0 0 4px;font-size:16px}
-  .nt label{display:flex;flex-direction:column;gap:4px;font:11px ui-monospace,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
-  .nt input,.nt textarea,.nt select{font:14px system-ui,sans-serif;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:8px 10px;letter-spacing:0;text-transform:none}
+  .nt h2{margin:0 0 4px;font-size:18px;line-height:24px;font-weight:600}
+  .nt label{display:flex;flex-direction:column;gap:4px;font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+  .nt input,.nt textarea,.nt select{font:14px var(--font-ui);letter-spacing:0;text-transform:none}
   .nt-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
   .nt-acts{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
 </style>

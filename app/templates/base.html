@@ -4,47 +4,77 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Command Centre{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:ital,wght@0,400..900;1,400..900&family=Fragment+Mono:ital@0;1&display=swap" rel="stylesheet">
 <style>
+  /* Meridian — the Freehold design system. Light is the default; dark follows the OS. */
   :root{
-    --page:#f6f7f8; --card:#fff; --line:#e2e6e9; --ink:#14181b; --dim:#5c666e; --accent:#1d6b8a;
-    --open:#5b6d7a; --doing:#1d6b8a; --blocked:#9a5b18; --done:#2f6b45; --bad:#9b3e31; --badsoft:#f6e6e2;
+    --font-ui:"Schibsted Grotesk","Helvetica Neue",Helvetica,sans-serif;
+    --font-mono:"Fragment Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --n1:#F7F8FA;--n2:#F1F3F6;--n3:#EAEDF1;--n4:#E2E6EB;--n5:#D9DEE4;--n6:#CDD3DB;--n7:#B9C1CB;--n8:#98A2B0;--n9:#808B9A;--n10:#717C8B;--n11:#56616F;--n12:#171C24;
+    --accent:#4A5FDE;--accent-hover:#3D51C9;--accent-text:#3240A8;--accent-subtle:#E8ECFD;
+    --positive:#1B7F3E;--warning:#B45309;--danger:#D92D20;--info:#0E7490;
+    --danger-tint:rgba(217,45,32,.12);--warning-tint:rgba(180,83,9,.12);
+    --surface-page:var(--n1);--surface-raised:#FFFFFF;--surface-sunken:var(--n2);--surface-hover:var(--n3);
+    --text-primary:var(--n12);--text-secondary:#3D4653;--text-muted:var(--n11);
+    --border-subtle:var(--n6);--border-strong:var(--n7);
+    --radius-xs:4px;--radius-sm:6px;--radius-md:8px;--radius-lg:12px;--radius-full:999px;
+    --shadow-raised:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.04);
+    --shadow-lift:0 12px 24px -4px rgba(16,24,40,.10),0 4px 8px -2px rgba(16,24,40,.06);
+    --ease:cubic-bezier(.2,0,0,1);
+    /* aliases the older templates still use */
+    --page:var(--surface-page);--card:var(--surface-raised);--line:var(--border-subtle);--ink:var(--text-primary);--dim:var(--text-muted);
+    --open:var(--accent);--doing:var(--info);--blocked:var(--warning);--done:var(--positive);--bad:var(--danger);--badsoft:var(--danger-tint);
   }
   @media (prefers-color-scheme:dark){
-    :root{ --page:#101315; --card:#181c1f; --line:#282e33; --ink:#e8ecee; --dim:#95a0a8; --accent:#59b6d6;
-           --open:#8fa2ad; --doing:#59b6d6; --blocked:#d5a05a; --done:#6fbb8e; --bad:#e08a7c; --badsoft:#2e1b18; }
+    :root{
+      --n1:#0F1116;--n2:#15181E;--n3:#1B1F26;--n4:#22262E;--n5:#292E37;--n6:#333944;--n7:#414957;--n8:#57606F;--n9:#6A7382;--n10:#78818F;--n11:#9AA3B2;--n12:#E9ECF1;
+      --accent:#5468E8;--accent-hover:#6D7FEF;--accent-text:#9AA8F8;--accent-subtle:#171B38;
+      --positive:#47C575;--warning:#E8AE3B;--danger:#EF6A76;--info:#4FB2E5;
+      --danger-tint:rgba(239,106,118,.15);--warning-tint:rgba(232,174,59,.15);
+      --surface-raised:var(--n2);--surface-sunken:#0A0C10;--text-secondary:#C0C6D0;
+      --shadow-raised:0 1px 2px rgba(0,0,0,.4);--shadow-lift:0 16px 48px rgba(0,0,0,.6);
+    }
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--page);color:var(--ink);
-       font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:0 20px 60px}
-  .wrap{max-width:1200px;margin:0 auto}
-  header{padding:32px 0 0;border-bottom:1px solid var(--line);
-         display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
-  h1{margin:0 0 14px;font-size:22px;letter-spacing:-.02em}
-  nav{display:flex;gap:2px}
-  nav a{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;
-        color:var(--dim);text-decoration:none;padding:8px 12px 12px;border-bottom:2px solid transparent;margin-bottom:-1px}
-  nav a.on{color:var(--ink);border-bottom-color:var(--accent)}
-  nav a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
-  .badge{display:inline-block;min-width:16px;padding:0 5px;border-radius:9px;background:var(--accent);color:#fff;font-size:10px;text-align:center;line-height:16px;letter-spacing:0;vertical-align:1px}
-  .chip{display:inline-block;font:10.5px ui-monospace,Menlo,monospace;padding:1px 7px;border:1px solid var(--line);border-radius:10px;color:var(--dim);text-decoration:none;letter-spacing:.02em}
-  .chip:hover{border-color:var(--accent);color:var(--accent)}
-  .sec{font:11px ui-monospace,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase;color:var(--dim);margin:0 0 10px}
-  .count{font:12px ui-monospace,Menlo,monospace;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;padding-bottom:14px}
-  main{padding-top:22px}
-  .mono{font:11px ui-monospace,Menlo,monospace;color:var(--dim)}
+  body{margin:0;background:var(--surface-page);color:var(--text-primary);font:14px/20px var(--font-ui);padding:0 24px 64px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1280px;margin:0 auto}
+  .wrap>header{padding:20px 0 0;display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;
+         border-bottom:1px solid var(--border-subtle);margin:0 -24px;padding-left:24px;padding-right:24px}
+  h1{margin:0 0 8px;font-size:24px;line-height:32px;font-weight:700;letter-spacing:-.01em}
+  nav{display:flex;gap:4px;margin-left:-12px}
+  nav a{font:500 14px/20px var(--font-ui);color:var(--text-muted);text-decoration:none;padding:8px 12px 12px;border-bottom:2px solid transparent;margin-bottom:-1px;
+        transition:color .12s var(--ease)}
+  nav a:hover{color:var(--text-primary)}
+  nav a.on{color:var(--text-primary);border-bottom-color:var(--accent)}
+  nav a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--radius-xs)}
+  .badge{display:inline-block;min-width:16px;padding:0 5px;border-radius:var(--radius-full);background:var(--accent);color:#fff;font:600 11px/16px var(--font-ui);text-align:center;vertical-align:1px}
+  .chip{display:inline-block;font:12px/18px var(--font-mono);padding:0 8px;border:1px solid var(--border-subtle);border-radius:var(--radius-full);color:var(--text-muted);text-decoration:none;background:var(--surface-raised)}
+  .chip:hover{border-color:var(--accent);color:var(--accent-text)}
+  .sec{font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted);margin:0 0 10px}
+  .count{font:12px/16px var(--font-mono);color:var(--text-muted);letter-spacing:.04em}
+  .avatar{width:22px;height:22px;border-radius:var(--radius-full);background:var(--accent-subtle);color:var(--accent-text);font:600 11px/22px var(--font-ui);text-align:center;display:inline-block;flex:none}
+  main{padding-top:24px}
+  .mono{font:12px/16px var(--font-mono);color:var(--text-muted)}
   .dot{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
   form{margin:0}
   input,select,textarea,button{font:inherit}
-  input[type=text],input[type=date],input[type=file]{width:100%;padding:8px 10px;border:1px solid var(--line);
-      border-radius:5px;background:var(--card);color:var(--ink)}
-  input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
-  label{display:flex;flex-direction:column;gap:5px;font-size:12.5px;color:var(--dim)}
-  .btn{padding:9px 16px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:5px;
-       cursor:pointer;font-weight:600;font-size:14px}
-  .btn.quiet{background:transparent;color:var(--accent)}
-  .note{border-left:3px solid var(--blocked);padding:10px 14px;font-size:13.5px;color:var(--dim);
-        background:var(--card);border-radius:0 5px 5px 0}
-  .note.bad{border-left-color:var(--bad);background:var(--badsoft);color:var(--ink)}
+  input[type=text],input[type=date],input[type=file],textarea,select{width:100%;padding:7px 10px;border:1px solid var(--border-subtle);
+      border-radius:var(--radius-sm);background:var(--surface-raised);color:var(--text-primary)}
+  input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible{outline:none;box-shadow:0 0 0 2px var(--surface-page),0 0 0 4px var(--accent)}
+  label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--text-muted)}
+  .btn{height:36px;padding:0 14px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:var(--radius-md);
+       cursor:pointer;font:500 14px/34px var(--font-ui);transition:background .12s var(--ease),border-color .12s var(--ease)}
+  .btn:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+  .btn.quiet{background:transparent;color:var(--text-secondary);border-color:var(--border-subtle)}
+  .btn.quiet:hover{background:var(--surface-hover);border-color:var(--border-strong)}
+  .btn.sm{height:28px;padding:0 10px;font-size:13px;line-height:26px}
+  .note{border-left:3px solid var(--warning);padding:10px 14px;font-size:13px;color:var(--text-secondary);
+        background:var(--surface-raised);border-radius:0 var(--radius-sm) var(--radius-sm) 0}
+  .note.bad{border-left-color:var(--danger);background:var(--danger-tint);color:var(--text-primary)}
+  .hdr-right{display:flex;align-items:center;gap:14px;padding-top:6px}
+  .who{display:flex;align-items:center;gap:8px;text-decoration:none;color:var(--text-primary);font-weight:500}
 </style>
 </head>
 <body>
@@ -64,14 +94,13 @@
       </nav>
       {% endif %}
     </div>
-    <div style="display:flex;align-items:flex-end;gap:16px">
+    <div class="hdr-right">
       {% block headright %}{% endblock %}
       {% if user %}
-      <form method="post" action="/logout" style="padding-bottom:14px;display:flex;align-items:center;gap:10px">
-        <a href="/account" class="mono" style="color:var(--ink);text-decoration:none">{{ user.name }}</a>
-        <button class="btn quiet" type="submit" style="padding:4px 9px;font-size:11px">Sign out</button>
-      </form>
+      <a href="/account" class="who"><span class="avatar">{{ user.name[0] }}</span>{{ user.name }}</a>
+      <form method="post" action="/logout"><button class="btn quiet sm" type="submit">Sign out</button></form>
       {% endif %}
+      {% block headaction %}{% endblock %}
     </div>
   </header>
   <main>{% block main %}{% endblock %}</main>

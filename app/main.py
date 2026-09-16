@@ -1,6 +1,7 @@
 """EMCC — the venture's command centre. Meetings in from EMOH, suggestions out, tasks between.
 Not MROSupply's command center; nothing is shared with it."""
 import os
+from datetime import datetime
 import re
 import secrets
 from contextlib import asynccontextmanager
@@ -64,6 +65,17 @@ app = FastAPI(title="EMCC API", version="0.3", lifespan=lifespan,
               description="The venture command centre. Auth: session from /login, or `Authorization: Bearer <api key>`.")
 app.add_middleware(SessionMiddleware, secret_key=secret_key(), same_site="lax", https_only=False)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
+
+
+def nice_date(v: str) -> str:
+    """2026-09-13 → 13 Sep. Anything unparseable is shown as-is."""
+    try:
+        return datetime.strptime(v, "%Y-%m-%d").strftime("%-d %b")
+    except (TypeError, ValueError):
+        return v or ""
+
+
+templates.env.filters["nice_date"] = nice_date
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 
 
@@ -82,7 +94,8 @@ def unseen(user_id: int) -> int:
 
 
 def page(request: Request, name: str, user: Optional[db.User], **ctx):
-    return templates.TemplateResponse(name, {"request": request, "user": user, "unseen": unseen(user.id) if user else 0, **ctx})
+    return templates.TemplateResponse(name, {"request": request, "user": user, "unseen": unseen(user.id) if user else 0,
+                                             "today": db.now().strftime("%Y-%m-%d"), **ctx})
 
 
 def users_all() -> list[db.User]:

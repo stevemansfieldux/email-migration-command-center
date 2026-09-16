@@ -108,6 +108,8 @@ function toggleDesc() { const d = $('pane-desc'), t = $('pane-desc-toggle'); d.c
 
 // ---------- reflect onto the board card ----------
 
+const TODAY = new Date().toISOString().slice(0, 10);
+function niceDate(v) { const d = new Date(v + 'T00:00:00'); return isNaN(d) ? v : `${d.getDate()} ${d.toLocaleString('en-GB', { month: 'short' })}`; }
 function reflectToCard(t) {
   const card = document.querySelector(`.task[data-id="${t.id}"]`);
   if (!card) return;
@@ -116,10 +118,12 @@ function reflectToCard(t) {
   if (col && card.parentElement !== col) { col.insertBefore(card, col.querySelector('.empty')); if (typeof recount === 'function') recount(); }
   const meta = card.querySelector('.meta');
   if (meta) {
-    const own = meta.querySelector('span:first-child'); if (own) own.textContent = t.owner || 'unassigned';
-    let hi = meta.querySelector('.hi'); if (t.priority === 'high' && !hi) { hi = document.createElement('span'); hi.className = 'hi'; hi.textContent = 'high'; own.after(hi); } else if (t.priority !== 'high' && hi) hi.remove();
-    let prog = meta.querySelector('.prog'); if (t.milestones_total) { if (!prog) { prog = document.createElement('span'); prog.className = 'prog'; meta.appendChild(prog); } prog.textContent = `${t.milestones_done}/${t.milestones_total}`; } else if (prog) prog.remove();
-    const cc = meta.querySelector('.cc'); if (cc) { const n = t.comment_count ?? (t.comments || []).length; cc.lastChild.textContent = n; cc.hidden = !n; cc.title = `${n} comment${n === 1 ? '' : 's'}`; }
+    const own = meta.querySelector('.own'); const name = t.owner || 'unassigned';
+    if (own) { own.querySelector('.avatar').textContent = name[0].toUpperCase(); own.lastChild.textContent = name; }
+    let hi = meta.querySelector('.hi'); if (t.priority === 'high' && !hi) { hi = document.createElement('span'); hi.className = 'hi'; hi.textContent = 'High'; own.after(hi); } else if (t.priority !== 'high' && hi) hi.remove();
+    let due = meta.querySelector('.due'); if (t.due) { if (!due) { due = document.createElement('span'); (hi || own).after(due); } const late = t.due < TODAY && t.status !== 'done'; due.className = 'due' + (late ? ' late' : ''); due.innerHTML = (late ? 'Overdue' : 'Due') + '<small></small>'; due.querySelector('small').textContent = niceDate(t.due); } else if (due) due.remove();
+    let prog = meta.querySelector('.prog'); if (t.milestones_total) { if (!prog) { prog = document.createElement('span'); prog.className = 'prog'; meta.insertBefore(prog, meta.querySelector('.cc')); } prog.innerHTML = '<b></b> subtasks'; prog.querySelector('b').textContent = `${t.milestones_done}/${t.milestones_total}`; } else if (prog) prog.remove();
+    const cc = meta.querySelector('.cc'); if (cc) { const n = t.comment_count ?? (t.comments || []).length; cc.innerHTML = '<b class="n"></b> ' + (n === 1 ? 'comment' : 'comments'); cc.querySelector('.n').textContent = n; cc.hidden = !n; }
     meta.querySelectorAll('.chip').forEach(c => c.remove());
     (t.tags || []).forEach(tg => { const a = document.createElement('a'); a.className = 'chip'; a.href = `/?tag=${tg}`; a.textContent = `#${tg}`; meta.appendChild(a); });
   }
