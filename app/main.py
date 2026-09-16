@@ -271,8 +271,10 @@ def board(request: Request, tag: Optional[str] = None, task: Optional[int] = Non
             ids = {r.task_id for r in s.exec(select(db.Tag).where(db.Tag.tag == tag)).all()}
             tasks = [t for t in tasks if t.id in ids]
         hidden = {r.task_id for r in s.exec(select(db.SuggestionHide).where(db.SuggestionHide.user_id == user.id)).all()}
+        # Every open suggestion, minus the ones this user marked "Not mine". The board's owner
+        # filter narrows them to a person; the Suggested column is where they wait.
         sugg = [t for t in s.exec(select(db.Task).where(db.Task.status == "suggested", db.Task.archived_at.is_(None)).order_by(db.Task.created_at.desc())).all()
-                if t.id not in hidden and t.suggested_owner in (user.name, "unassigned", "")]
+                if t.id not in hidden]
         ids = [t.id for t in tasks] + [t.id for t in sugg]
         tags, ms, cm = tag_map(s, ids), milestone_map(s, ids), comment_map(s, ids)
         dup_titles = {t.dup_of: s.get(db.Task, t.dup_of).title for t in sugg if t.dup_of and s.get(db.Task, t.dup_of)}
