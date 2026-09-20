@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% block title %}Plan — EMCC{% endblock %}
+{% block headright %}<a class="mono" href="https://claude.ai/artifact/4xKGvkqymeNqFZjXLMp89c" target="_blank" rel="noopener" style="text-decoration:none">standalone ↗</a>{% endblock %}
+{% block main %}
+<style>
+  :root{
+    --font-ui:"Schibsted Grotesk","Helvetica Neue",Helvetica,sans-serif;
+    --font-mono:"Fragment Mono",ui-monospace,"SF Mono",Menlo,monospace;
+    --n1:#F7F8FA;--n2:#F1F3F6;--n3:#EAEDF1;--n5:#D9DEE4;--n6:#CDD3DB;--n7:#B9C1CB;--n9:#808B9A;--n11:#56616F;--n12:#171C24;
+    --accent:#4A5FDE;--accent-text:#3240A8;--accent-subtle:#E8ECFD;
+    --positive:#1B7F3E;--positive-tint:rgba(27,127,62,.12);--warning:#B45309;--warning-tint:rgba(180,83,9,.12);--danger:#D92D20;--danger-tint:rgba(217,45,32,.12);
+    --page:var(--n1);--raised:#FFFFFF;--sunken:var(--n2);--ink:var(--n12);--ink2:#3D4653;--muted:var(--n11);--line:var(--n6);--line2:var(--n7);
+    --shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.04);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --n1:#0F1116;--n2:#15181E;--n3:#1B1F26;--n5:#292E37;--n6:#333944;--n7:#414957;--n9:#6A7382;--n11:#9AA3B2;--n12:#E9ECF1;
+      --accent:#5468E8;--accent-text:#9AA8F8;--accent-subtle:#171B38;
+      --positive:#47C575;--positive-tint:rgba(71,197,117,.15);--warning:#E8AE3B;--warning-tint:rgba(232,174,59,.15);--danger:#EF6A76;--danger-tint:rgba(239,106,118,.15);
+      --raised:var(--n2);--sunken:#0A0C10;--ink2:#C0C6D0;--shadow:0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --n1:#0F1116;--n2:#15181E;--n3:#1B1F26;--n5:#292E37;--n6:#333944;--n7:#414957;--n9:#6A7382;--n11:#9AA3B2;--n12:#E9ECF1;
+    --accent:#5468E8;--accent-text:#9AA8F8;--accent-subtle:#171B38;
+    --positive:#47C575;--positive-tint:rgba(71,197,117,.15);--warning:#E8AE3B;--warning-tint:rgba(232,174,59,.15);--danger:#EF6A76;--danger-tint:rgba(239,106,118,.15);
+    --raised:var(--n2);--sunken:#0A0C10;--ink2:#C0C6D0;--shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+.roi .roi-wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+.roi h1{margin:0;font-size:26px;line-height:34px;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+.roi .lede{margin:6px 0 0;color:var(--ink2);max-width:62ch}
+.roi .eyebrow{font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.roi .num{font-variant-numeric:tabular-nums}
+
+  /* size picker + the Klaviyo baseline */
+.roi .top{display:grid;grid-template-columns:1fr auto;gap:24px;align-items:end}
+.roi .seg{display:inline-flex;background:var(--sunken);border:1px solid var(--line);border-radius:8px;padding:3px;gap:3px;flex-wrap:wrap}
+.roi .seg button{height:32px;padding:0 14px;border:0;border-radius:6px;background:transparent;color:var(--muted);font:500 14px/32px var(--font-ui);cursor:pointer}
+.roi .seg button:hover{color:var(--ink)}
+.roi .seg button.on{background:var(--raised);color:var(--ink);box-shadow:var(--shadow)}
+.roi .seg button:focus-visible,.roi input:focus-visible{outline:none;box-shadow:0 0 0 2px var(--page),0 0 0 4px var(--accent)}
+.roi .base{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:16px 20px;display:flex;gap:28px;align-items:baseline;box-shadow:var(--shadow)}
+.roi .base .big{font-size:30px;line-height:34px;font-weight:700;letter-spacing:-.01em}
+.roi .base .sub{color:var(--muted)}
+.roi .base .note{font-size:12px;color:var(--muted);max-width:26ch;line-height:16px}
+
+  /* the three tiers */
+.roi .tiers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.roi .tier{background:var(--raised);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);display:flex;flex-direction:column;overflow:hidden}
+.roi .tier.best{border-color:var(--accent)}
+.roi .th{padding:16px 18px 14px;border-bottom:1px solid var(--line)}
+.roi .th h2{margin:0;font-size:17px;line-height:22px;font-weight:600}
+.roi .th p{margin:4px 0 0;color:var(--muted);font-size:13px;line-height:18px}
+.roi .rsec{padding:14px 18px 6px}
+.roi .rsec .eyebrow{display:flex;justify-content:space-between;align-items:baseline}
+.roi .rsec .eyebrow em{font-style:normal;color:var(--n9);letter-spacing:0;text-transform:none;font-family:var(--font-ui);font-size:12px}
+.roi .rows{display:flex;flex-direction:column}
+.roi .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:7px 18px;font-size:14px}
+.roi .row.sub{padding:5px 18px 5px 32px;color:var(--muted);font-size:13px}
+.roi .row.sub span:first-child::before{content:"–";margin-right:8px;color:var(--n9)}
+.roi .row .v{font-weight:600}
+.roi .row.total{border-top:1px solid var(--line);margin-top:4px;padding-top:10px}
+.roi .row.hero{background:var(--sunken);margin:6px 12px 0;border-radius:8px;padding:12px 10px;display:grid;grid-template-columns:1fr auto;align-items:center}
+.roi .row.hero .v{font-size:22px;line-height:26px;font-weight:700}
+.roi .row.hero .k{color:var(--ink2)}
+.roi .row.hero .k small{display:block;font-size:12px;color:var(--muted);line-height:14px;margin-top:2px}
+.roi .good{color:var(--positive)} .roi .warn{color:var(--warning)} .roi .bad{color:var(--danger)}
+.roi .verdict{margin:12px 12px 14px;padding:10px 12px;border-radius:8px;font-size:13px;line-height:18px;display:flex;gap:10px;align-items:flex-start}
+.roi .verdict i{width:8px;height:8px;border-radius:50%;flex:none;margin-top:5px;display:inline-block}
+.roi .verdict.strong{background:var(--positive-tint)} .roi .verdict.strong i{background:var(--positive)}
+.roi .verdict.ok{background:var(--warning-tint)} .roi .verdict.ok i{background:var(--warning)}
+.roi .verdict.no{background:var(--danger-tint)} .roi .verdict.no i{background:var(--danger)}
+.roi .verdict b{display:block}
+.roi .ours{border-top:1px dashed var(--line2);margin-top:auto}
+
+  /* floor + assumptions */
+.roi .floor{background:var(--raised);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.roi .floor h3{margin:0 0 6px;font-size:15px}
+.roi .floor p{margin:0;color:var(--ink2);font-size:13.5px;line-height:19px;max-width:60ch}
+.roi .strip{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:8px}
+.roi .strip div{padding:8px 6px;border-radius:6px;text-align:center;font:12px/16px var(--font-mono)}
+.roi .strip div span{display:block;font-family:var(--font-ui);font-size:12px;color:var(--ink2);margin-top:2px}
+.roi .strip .s{background:var(--positive-tint)} .roi .strip .o{background:var(--warning-tint)} .roi .strip .n{background:var(--danger-tint)}
+.roi details{background:var(--raised);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.roi summary{cursor:pointer;padding:14px 20px;font-weight:600;list-style:none;display:flex;justify-content:space-between}
+.roi summary::after{content:"Edit";color:var(--accent-text);font-weight:500}
+.roi details[open] summary::after{content:"Done"}
+.roi .assume{padding:0 20px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 18px}
+.roi .assume label{display:flex;flex-direction:column;gap:5px;font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.roi .assume input{height:34px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:var(--raised);color:var(--ink);font:14px var(--font-ui)}
+.roi .assume .g{grid-column:1/-1;font:12px/16px var(--font-ui);color:var(--muted);margin-top:-4px}
+.roi .src{font-size:12px;color:var(--muted);line-height:18px}
+.roi .src a{color:var(--accent-text)}
+  @media (max-width:900px){.roi .tiers{grid-template-columns:1fr}.roi .top,.roi .floor{grid-template-columns:1fr}.roi .strip{grid-template-columns:repeat(3,1fr)}}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}</style>
+<div class="roi"><div class="roi-wrap">
+  <div>
+    <div class="eyebrow">Freehold · pricing model · rev 10 · 20 September 2026</div>
+    <h1>One platform, three ways to run it — what they save, what we keep</h1>
+    <p class="lede">Everyone migrates onto the same product. The licence decides who runs it: they do (free licence), we do (flat managed fee), or it lives on our cloud (sliding licence, 12-month contract). The migration fee steps with the list: $4k under 75k, $5k, $6k, $8k over 250k. Pick a list size; edit the pricing at the bottom and everything recalculates. Our cost to serve is deliberately not modelled here — who does the work (us, agents, outsourced) is not decided.</p>
+  </div>
+
+  <div class="top">
+    <div>
+      <div class="eyebrow" style="margin-bottom:8px">Their list · active profiles</div>
+      <div class="seg" id="sizes" role="group" aria-label="List size"></div>
+    </div>
+    <div class="base">
+      <div><div class="eyebrow">They pay Klaviyo now</div><div class="big num" id="kv-mo">$0</div><div class="sub num" id="kv-yr">$0 a year</div></div>
+      <div class="note" id="kv-note">Published email-plan price.</div>
+    </div>
+  </div>
+
+  <div class="tiers" id="tiers"></div>
+
+  <div class="floor">
+    <div>
+      <h3>Where the floor is</h3>
+      <p id="floor-text"></p>
+    </div>
+    <div>
+      <div class="eyebrow">By list size · highest year-1 billing that still sells</div>
+      <div class="strip" id="strip"></div>
+    </div>
+  </div>
+
+  <details>
+    <summary>Assumptions</summary>
+    <div class="assume" id="assume"></div>
+  </details>
+
+  <p class="src">Klaviyo prices are the 2026 published email-plan tiers (active-profile billing since Feb 2025; SMS is a separate credit bill on top). Above 250k Klaviyo quotes privately — the 300k figure is an estimate. Sources: <a href="https://www.retainful.com/blog/klaviyo-pricing">Retainful</a>, <a href="https://www.omnisend.com/blog/klaviyo-pricing/">Omnisend</a>. Sending estimate (client side, self-hosted and managed): SES at $0.10 per 1,000, ~8 sends per profile per month, a dedicated IP above 100k. No tier carries our hours: maintenance means uptime and no bugs, and every piece of work for a client is billed at the hourly rate.</p>
+</div>
+</div>
+<script>
+// ---- model ----------------------------------------------------------------
+const SIZES = [50000, 75000, 100000, 150000, 200000, 300000];
+// Klaviyo email plan, published 2026. 300k is an estimate (custom-quoted above 250k).
+const KLAVIYO = { 50000: 720, 75000: 1140, 100000: 1380, 150000: 1955, 200000: 2070, 250000: 2300, 300000: 2800 };
+const A = {                     // editable assumptions
+  // Migration fee and managed flat fee step up with list size: under 75k / 75k+ / 100k+ / over 250k
+  fee50: 4000, fee75: 5000, fee100: 6000, fee250: 8000,
+  man50: 200, man75: 250, man100: 300, man250: 400,
+  cloud50: 250,                 // cloud licence at 50k; slides to (Klaviyo − discount) from 75k up
+  discount: 50,                 // cloud licence: % under Klaviyo's published price
+  hourly: 150,                  // what we bill extra work at
+  theirHost: 80,                // what self-hosting costs the client per month (VM + Postgres)
+  clientSes: 1,                 // 1 = sends go through the client's own AWS account (self-hosted + managed)
+  sends: 8, ses: 0.10, ip: 25,  // sends per profile per month, SES $ per 1k, dedicated IP above 100k
+};
+const LABELS = { fee50: 'Fee · under 75k', fee75: 'Fee · 75k+', fee100: 'Fee · 100k+', fee250: 'Fee · over 250k',
+  man50: 'Managed /mo · under 75k', man75: 'Managed /mo · 75k+', man100: 'Managed /mo · 100k+', man250: 'Managed /mo · over 250k',
+  cloud50: 'Cloud licence at 50k', discount: 'Cloud: % under Klaviyo (75k+)', hourly: 'Extra work $/h', theirHost: 'Their hosting cost /mo', clientSes: 'Sends on their AWS (1/0)', sends: 'Sends per profile /mo', ses: 'SES $ per 1,000', ip: 'Dedicated IP /mo' };
+
+const band = (n, a, b, c, d) => n < 75000 ? a : n < 100000 ? b : n <= 250000 ? c : d;
+const fee = n => band(n, A.fee50, A.fee75, A.fee100, A.fee250);
+const managed = n => band(n, A.man50, A.man75, A.man100, A.man250);
+
+const lerp = (a, b, n) => a + (b - a) * Math.min(1, Math.max(0, (n - 50000) / 250000));
+const klaviyo = n => { const ks = Object.keys(KLAVIYO).map(Number).sort((a, b) => a - b); if (KLAVIYO[n]) return KLAVIYO[n]; let lo = ks[0], hi = ks[ks.length - 1]; for (const k of ks) { if (k <= n) lo = k; if (k >= n) { hi = k; break; } } return lo === hi ? KLAVIYO[lo] : KLAVIYO[lo] + (KLAVIYO[hi] - KLAVIYO[lo]) * (n - lo) / (hi - lo); };
+const sesCost = n => n * A.sends / 1000 * A.ses + (n > 100000 ? A.ip : 0);
+
+// Each tier: what the client pays us monthly, what else the client pays to run it, what it costs us.
+const TIERS = [
+  { key: 'self', name: 'Self-hosted', licence: 'Free licence', blurb: 'We migrate them onto the platform on their own infrastructure and hand over the runbook. They own it, they run it. Extra work is billed by the hour.',
+    price: () => 0, theirs: n => A.theirHost + (A.clientSes ? sesCost(n) : 0), theirsLabel: 'Their hosting + sending',
+ extra: () => `Extra work billed at $${A.hourly}/h` },
+  { key: 'managed', name: 'Managed', licence: 'Flat fee', blurb: 'The same product, on infrastructure we run, for a flat monthly fee set by list size. The fee buys uptime and a working platform — no bugs, nothing broken. They self-serve; any work we do for them is billed by the hour.',
+    price: n => managed(n), theirs: n => A.clientSes ? sesCost(n) : 0, theirsLabel: 'Sending on their AWS',
+ extra: () => 'Flat fee for the band; extra work billed at $' + A.hourly + '/h' },
+  { key: 'cloud', name: 'Cloud', licence: 'Sliding licence', blurb: 'On our platform, under a licence priced off their list size. We cover infrastructure, sending and uptime; they verify their sending domain and self-serve. 12-month contract.',
+    price: n => { const slide = m => klaviyo(m) * (1 - A.discount / 100); return n <= 50000 ? A.cloud50 : n < 75000 ? A.cloud50 + (slide(75000) - A.cloud50) * (n - 50000) / 25000 : slide(n); }, theirs: () => 0, theirsLabel: '',
+ extra: () => `Self-serve; extra work billed at $${A.hourly}/h` },
+];
+
+function calc(t, n) {
+  const k = klaviyo(n), p = t.price(n), theirs = t.theirs(n), allIn = p + theirs, save = k - allIn;
+  const f = fee(n);
+  const payback = save > 0 ? f / save : Infinity;
+  const y1 = save * 12 - f, y3 = save * 36 - f;
+  const rev1 = f + p * 12, rev3 = f + p * 36;
+  // verdict is about the client: does the fee pay back fast enough to sell?
+  const verdict = payback <= 6 ? 'strong' : payback <= 12 ? 'ok' : 'no';
+  return { k, p, theirs, allIn, save, payback, y1, y3, rev1, rev3, verdict, fee: f };
+}
+const money = v => (v < 0 ? '−' : '') + '$' + Math.round(Math.abs(v)).toLocaleString('en-US');
+const months = m => !isFinite(m) ? 'never' : m < 1 ? 'under a month' : `${m.toFixed(m < 10 ? 1 : 0)} months`;
+const fmtN = n => n >= 1000 ? (n / 1000) + 'k' : n;
+
+// ---- render ---------------------------------------------------------------
+let size = 150000;
+const $ = id => document.getElementById(id);
+
+function render() {
+  const k = klaviyo(size);
+  $('kv-mo').textContent = money(k) + ' / mo';
+  $('kv-yr').textContent = money(k * 12) + ' a year, email only';
+  $('kv-note').textContent = size > 250000 ? 'Estimate — Klaviyo quotes privately above 250k profiles.' : 'Published email-plan price. SMS billed separately on top.';
+  document.querySelectorAll('#sizes button').forEach(b => b.classList.toggle('on', +b.dataset.n === size));
+
+  const results = TIERS.map(t => ({ t, r: calc(t, size) }));
+  const best = results.filter(x => x.r.verdict !== 'no').sort((a, b) => b.r.rev1 - a.r.rev1)[0];
+  $('tiers').innerHTML = results.map(({ t, r }) => {
+    const pc = r.payback <= 6 ? 'good' : r.payback <= 12 ? 'warn' : 'bad';
+    const vtext = { strong: ['Easy sell.', `The fee is back in ${months(r.payback)}; they're ${money(r.y1)} up in year one.`],
+                    ok: ['Sells, with a conversation.', `Fee back in ${months(r.payback)}. Year one is ${r.y1 >= 0 ? 'ahead by' : 'behind by'} ${money(Math.abs(r.y1))}; year two onward saves ${money(r.save * 12)} a year.`],
+                    no: ['Hard sell at this size.', `A ${months(r.payback)} payback on ${money(r.fee)}.`] }[r.verdict];
+    return `<section class="tier ${best && best.t === t ? 'best' : ''}">
+      <div class="th"><div class="eyebrow" style="margin-bottom:4px">${t.licence}</div><h2>${t.name}</h2><p>${t.blurb}</p></div>
+      <div class="rsec"><div class="eyebrow">For the client <em>per month</em></div></div>
+      <div class="rows">
+        <div class="row"><span>They pay Klaviyo now</span><span class="v num">${money(r.k)}</span></div>
+        <div class="row"><span>They'd pay us</span><span class="v num">${r.p ? money(r.p) : '$0'}</span></div>
+        ${r.theirs ? `<div class="row sub"><span>${t.theirsLabel}, paid by them</span><span class="num">${money(r.theirs)}</span></div>` : ''}
+        <div class="row hero"><span class="k">They save<small>every month, all costs in</small></span><span class="v num ${r.save > 0 ? 'good' : 'bad'}">${money(r.save)}</span></div>
+        <div class="row" style="margin-top:6px"><span>One-off migration fee</span><span class="v num">${money(r.fee)}</span></div>
+        <div class="row"><span>Fee paid back in</span><span class="v num ${pc}">${months(r.payback)}</span></div>
+        <div class="row total"><span>Net saving, year 1 <em style="color:var(--muted);font-style:normal">(after the fee)</em></span><span class="v num ${r.y1 >= 0 ? 'good' : 'bad'}">${money(r.y1)}</span></div>
+        <div class="row"><span>Net saving over 3 years</span><span class="v num ${r.y3 >= 0 ? 'good' : 'bad'}">${money(r.y3)}</span></div>
+      </div>
+      <div class="ours">
+        <div class="rsec"><div class="eyebrow">For us <em>per client</em></div></div>
+        <div class="rows">
+          <div class="row"><span>One-off migration fee</span><span class="v num">${money(r.fee)}</span></div>
+          <div class="row"><span>Monthly</span><span class="v num">${money(r.p)}</span></div>
+          <div class="row sub"><span>${t.extra()}</span><span></span></div>
+          <div class="row total"><span>We bill, year 1 <em style="color:var(--muted);font-style:normal">(fee + 12 months)</em></span><span class="v num good">${money(r.rev1)}</span></div>
+          <div class="row"><span>We bill over 3 years</span><span class="v num">${money(r.rev3)}</span></div>
+        </div>
+        <div class="verdict ${r.verdict}"><i></i><span><b>${vtext[0]}</b>${vtext[1]}</span></div>
+      </div>
+    </section>`;
+  }).join('');
+
+  // floor text + strip
+  const floorAt = SIZES.find(n => TIERS.some(t => calc(t, n).verdict === 'strong'));
+  const okAt = SIZES.find(n => TIERS.some(t => calc(t, n).verdict !== 'no'));
+  $('floor-text').innerHTML = `With the fee stepping down for smaller lists, the floor is about whether the fee pays back within a year — and it does at every size from <b>${fmtN(okAt || SIZES[0])}</b>, within two quarters from <b>${fmtN(floorAt || '—')}</b>. The strip shows the tier that bills the most in year one at each size.`;
+  $('strip').innerHTML = SIZES.map(n => { const rs = TIERS.map(t => ({ t, r: calc(t, n) })); const b = rs.filter(x => x.r.verdict !== 'no').sort((a, b) => b.r.rev1 - a.r.rev1)[0]; const cls = !b ? 'n' : b.r.verdict === 'strong' ? 's' : 'o'; return `<div class="${cls}">${fmtN(n)}<span>${b ? b.t.name + ' · ' + months(b.r.payback).replace(' months', ' mo') : 'too small'}</span></div>`; }).join('');
+}
+
+// size buttons
+$('sizes').innerHTML = SIZES.map(n => `<button type="button" data-n="${n}">${fmtN(n)}</button>`).join('');
+$('sizes').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; size = +b.dataset.n; render(); });
+
+// assumptions
+$('assume').innerHTML = Object.keys(A).map(k => `<label>${LABELS[k]}<input id="a-${k}" type="number" step="any" value="${A[k]}"></label>`).join('') + `<div class="g">Fee, managed fee and migration hours are bands: under 75k / 75k+ / 100k+ / over 250k (hours: under 150k / 150–250k / over 250k). Cloud licence is $250 at 50k, sliding up to Klaviyo × (1 − discount) from 75k. Verdict is the client's payback on the fee: <b>easy</b> within 6 months, <b>sells</b> within 12, <b>hard</b> beyond. Sends on their own AWS account is the default for self-hosted and managed — it keeps the managed fee flat at any list size.</div>`;
+$('assume').addEventListener('input', e => { const k = e.target.id.replace('a-', ''); if (k in A) { A[k] = +e.target.value || 0; render(); } });
+
+// The published defaults are the source of truth: the host can carry old form values across a
+// republish, so re-stamp the inputs from A after any restore rather than reading them back.
+const stamp = () => { for (const k in A) { const el = $('a-' + k); if (el && +el.value !== A[k]) el.value = A[k]; } render(); };
+stamp(); setTimeout(stamp, 300); setTimeout(stamp, 1500);
+</script>
+{% endblock %}

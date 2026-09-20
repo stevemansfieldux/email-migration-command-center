@@ -527,6 +527,12 @@ def meetings_refresh(user: db.User = auth.PageUser):
     return RedirectResponse("/meetings", status_code=303)
 
 
+@app.get("/plan", response_class=HTMLResponse)
+def plan_page(request: Request, user: db.User = auth.PageUser):
+    """The pricing model: one platform, three licences. Same page as the ROI artifact."""
+    return page(request, "plan.html", user, tab="plan")
+
+
 # ---------- inbox + messages ----------
 
 @app.get("/inbox", response_class=HTMLResponse)

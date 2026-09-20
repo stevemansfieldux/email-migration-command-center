@@ -21,6 +21,8 @@ Live at https://34.89.78.186.sslip.io · API docs at `/docs`.
 - **Tasks** — four columns, drag between them, *+ New task* to add one, click a card to open the
   drawer. Tags with descriptions,
   per-task milestones with progress on the card, comments with `@Steve` / `@Matt` mentions.
+- **Plan** — the pricing model (one platform, three licences): client savings, payback and our
+  margin per list size, with editable assumptions. Same page as the ROI artifact.
 - **Inbox** — mentions, assignments, and new suggestions for you. Plus a direct-message thread.
 - **Ask Claude** — an assistant with tools over the board and the transcripts.
 - **Account** — name, password, API key rotation, your open tasks.
