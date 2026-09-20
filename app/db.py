@@ -186,4 +186,4 @@ def _add_missing_columns() -> None:
 
 
 def session() -> Session:
-    return Session(engine)
+    return Session(engine, expire_on_commit=False)
