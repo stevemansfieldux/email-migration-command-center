@@ -15,7 +15,7 @@
   .cols{flex:1;min-height:0;padding-bottom:0;margin-bottom:0}
   .col{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--n6) transparent}
   .col::-webkit-scrollbar{width:8px} .col::-webkit-scrollbar-thumb{background:var(--n6);border-radius:4px;border:2px solid var(--surface-sunken)}
-  .colhead::after{content:"";position:absolute;left:0;right:0;bottom:-12px;height:12px;background:linear-gradient(var(--surface-sunken),transparent);pointer-events:none}
+  .colhead::after{content:"";position:absolute;left:0;right:0;bottom:-10px;height:10px;background:linear-gradient(var(--surface-sunken),transparent);pointer-events:none}
   .col .task:last-of-type{margin-bottom:6px}
   .task.sg{border:1px dashed var(--border-strong);box-shadow:none;background:color-mix(in srgb,var(--surface-raised) 70%,transparent)}
   .task.sg:hover{box-shadow:var(--shadow-raised);transform:none}
@@ -35,9 +35,9 @@
      quarter, so the extra column overflows and peeks in from the right — scroll to it. */
   .col{flex:1 1 0;min-width:max(220px,calc((100% - 42px) / 4 * .9))}
   .col[hidden]{display:none}
-  .col{display:flex;flex-direction:column;gap:12px;min-height:260px;background:var(--surface-sunken);border-radius:var(--radius-lg);padding:14px;transition:background .12s var(--ease)}
+  .col{display:flex;flex-direction:column;gap:12px;min-height:260px;background:var(--surface-sunken);border-radius:var(--radius-lg);padding:0 14px 14px;transition:background .12s var(--ease)}
   .col.over{background:var(--accent-subtle)}
-  .colhead{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:1;margin:-14px -14px 4px;padding:16px 30px 12px;background:var(--surface-sunken);border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+  .colhead{display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:1;margin:0 -14px 2px;padding:16px 30px 10px;background:var(--surface-sunken);border-radius:var(--radius-lg) var(--radius-lg) 0 0}
   .colname{font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
   .task{background:var(--surface-raised);border:1px solid transparent;border-radius:var(--radius-md);padding:12px 16px 14px;display:flex;flex-direction:column;gap:8px;cursor:pointer;
         box-shadow:var(--shadow-raised);transition:box-shadow .16s var(--ease),transform .16s var(--ease)}
