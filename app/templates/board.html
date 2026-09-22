@@ -6,6 +6,17 @@
 {% block headaction %}<button class="btn" type="button" onclick="document.getElementById('new-task').showModal()">+ New task</button>{% endblock %}
 {% block main %}
 <style>
+  /* A board, not a page: the chrome stays put, the page never scrolls, each column scrolls on
+     its own. Cards slide behind the column's bottom edge into a strip of page margin. */
+  html,body{height:100%;overflow:hidden}
+  body{padding-bottom:0}
+  .wrap{height:100%;display:flex;flex-direction:column}
+  .wrap>main{flex:1;min-height:0;display:flex;flex-direction:column;padding-bottom:20px}
+  .cols{flex:1;min-height:0;padding-bottom:0;margin-bottom:0}
+  .col{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--n6) transparent}
+  .col::-webkit-scrollbar{width:8px} .col::-webkit-scrollbar-thumb{background:var(--n6);border-radius:4px;border:2px solid var(--surface-sunken)}
+  .colhead{position:sticky;top:-14px;margin:-14px -14px 0;padding:14px 16px 8px;background:var(--surface-sunken);z-index:1;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+  .col .task:last-of-type{margin-bottom:6px}
   .task.sg{border:1px dashed var(--border-strong);box-shadow:none;background:color-mix(in srgb,var(--surface-raised) 70%,transparent)}
   .task.sg:hover{box-shadow:var(--shadow-raised);transform:none}
   .q{font-size:13px;line-height:19px;color:var(--text-muted);font-style:italic;border-left:2px solid var(--border-subtle);padding-left:9px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
