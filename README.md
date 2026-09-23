@@ -47,6 +47,34 @@ passwords, mints Steve's key). Rotate a key any time from `/account`.
 `DELETE /api/tasks/{id}` archives; `/restore` brings it back. Nothing is hard-deleted.
 Every write records who did it.
 
+## Epics
+
+A task can be dropped inside another one. The container is an **epic**: a real task numbered
+`EPIC-001`, `EPIC-002` and so on (the number is issued once and never reused), shown on the
+board as a card with two card edges behind it and an `epic · n` tag. Click the card body or the
+tag to fold the tasks inside it open or closed; that state is remembered per browser. Members
+stay ordinary tasks and keep their own status column; on the board they fold into the epic's
+card whenever the epic is on the board, and carry an `↳ EPIC-001` chip otherwise.
+
+- **Create one**: drag a card and hold it over another plain card for a second until it says
+  "Drop inside", then drop. A dialog asks for the epic's title and puts both cards inside.
+- **Add to one**: hold a card over an epic card the same way, or pick the epic from the
+  `epic` chip in the task drawer.
+- **Mirror milestones**: the epic carries one milestone per member, named after it. It ticks
+  when the member is done and its text opens the member. Removing it takes the member out.
+- **Done lets a member out**, and its mirror ticks. Reopening the member puts it back.
+- **Epics do not nest.** An epic cannot go inside another and a member cannot take members.
+  Archiving an epic sets its members free.
+- **Owner filter**: an epic stays visible when any task inside it belongs to the filtered
+  person, whoever owns the epic. Column counts count an epic once.
+
+API: `POST /api/epics {title, members: [ids or refs], owner?}` creates one; `GET /api/epics`
+lists them with live member counts; `PATCH /api/tasks/{id} {epic_id: <id or ref> | null}`
+puts a task inside or takes it out. `GET /api/tasks/{id}` carries `epic_id`, `epic_no`,
+`label`, `epic_label` and `members`.
+
+The behaviour mirrors the MRO command center's epics; it was rebuilt here, nothing is shared.
+
 ## Run it locally
 
 ```bash

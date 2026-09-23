@@ -56,6 +56,26 @@
   .cc{display:inline-flex;align-items:center;gap:5px} .cc[hidden]{display:none}
   .meta .chip{margin-left:-6px}
   .empty{font-size:14px;color:var(--text-muted);text-align:center;padding:36px 8px 0}
+  /* Epics: a card with cards inside. Two card edges sit behind it, a mono tag carries the count,
+     and the member cards fold open below the meta row. Hold a dragged card over another card for
+     a second to drop it inside; over a plain card that creates a new epic with both. */
+  .task.epic{box-shadow:var(--shadow-raised),3px 3px 0 -1px var(--surface-raised),3px 3px 0 0 var(--border-subtle),6px 6px 0 -1px var(--surface-raised),6px 6px 0 0 var(--border-subtle);margin-right:6px}
+  .task.epic:hover{box-shadow:var(--shadow-lift),3px 3px 0 -1px var(--surface-raised),3px 3px 0 0 var(--border-strong),6px 6px 0 -1px var(--surface-raised),6px 6px 0 0 var(--border-subtle)}
+  .ref{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .epic-tag{display:inline-flex;align-items:center;gap:5px;font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--info);border:1px solid color-mix(in srgb,var(--info) 40%,transparent);border-radius:var(--radius-full);padding:0 7px 0 5px;white-space:nowrap;cursor:pointer}
+  .epic-tag .tri{display:inline-block;width:8px;text-align:center;transition:transform .12s var(--ease)}
+  .epic-tag .tri.open{transform:rotate(90deg)}
+  .epic-in{display:inline-flex;align-items:center;font:11px/16px var(--font-mono);letter-spacing:.04em;color:var(--info);white-space:nowrap}
+  .epic-stack{display:flex;flex-direction:column;gap:8px;margin:4px 0 0;padding:10px 0 0 10px;border-left:2px solid var(--border-subtle)}
+  .epic-stack[hidden]{display:none}
+  .epic-stack .task{box-shadow:none;border-color:var(--border-subtle);background:var(--surface-page)}
+  .epic-stack .task:hover{box-shadow:var(--shadow-raised);transform:none}
+  .task.arming{outline:2px dashed var(--border-strong);outline-offset:2px}
+  .task.target{outline:2px solid var(--accent);outline-offset:2px;background:var(--accent-subtle);position:relative}
+  .task.target::after{content:"Drop inside";position:absolute;top:-10px;left:12px;font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;background:var(--accent);color:#fff;border-radius:var(--radius-full);padding:0 8px}
+  .ep-list{margin:0;padding-left:18px;font-size:13px;line-height:20px;color:var(--text-secondary)}
+  .ep-list li{overflow-wrap:anywhere}
+  .ep-err{color:var(--danger);font-size:13px}
   @media (prefers-reduced-motion:reduce){.col,.task{transition:none}}
 </style>
 
@@ -90,8 +110,11 @@
   <div class="col" data-status="{{ st }}">
     <div class="colhead"><span class="dot" style="background:var(--{{ st }})"></span><span class="colname">{{ st }} · <span class="n">{{ columns[st]|length }}</span></span></div>
     {% for t in columns[st] %}
-    <div class="task {{ 'sample' if t.source == 'sample' else '' }}" draggable="true" data-id="{{ t.id }}" data-owner="{{ t.owner }}">
-      <div class="ref">{{ ref(t.id) }}</div>
+    <div class="task {{ 'sample' if t.source == 'sample' else '' }} {{ 'epic' if t.epic_no else '' }}" draggable="true" data-id="{{ t.id }}" data-owner="{{ t.owner }}"
+         data-epic="{{ t.epic_id or '' }}" data-epic-no="{{ t.epic_no or '' }}" data-members="{{ epic_counts.get(t.id, 0) }}" data-title="{{ t.title }}">
+      <div class="ref"><span class="refno">{{ epic_labels.get(t.id) or ref(t.id) }}</span>
+        {% if t.epic_no %}<span class="epic-tag" title="Show the tasks inside"><span class="tri">▸</span>epic · <span class="n-in">{{ epic_counts.get(t.id, 0) }}</span></span>{% endif %}
+        {% if t.epic_id %}<span class="epic-in" title="Inside {{ epic_labels.get(t.epic_id, ref(t.epic_id)) }}">↳ {{ epic_labels.get(t.epic_id, ref(t.epic_id)) }}</span>{% endif %}</div>
       <div class="title"><a href="/tasks/{{ ref(t.id) }}">{{ t.title }}</a></div>
       {% set body = t.detail.split('\n\n> ')[0] %}
       {% if body %}<div class="detail">{{ body }}</div>{% endif %}
@@ -99,10 +122,11 @@
         <span class="own"><span class="avatar">{{ (t.owner or 'unassigned')[0]|upper }}</span>{{ t.owner or 'unassigned' }}</span>
         {% if t.priority == 'high' %}<span class="hi">High</span>{% endif %}
         {% if t.due %}{% set late = t.due < today and st != 'done' %}<span class="due {{ 'late' if late else '' }}">{{ 'Overdue' if late else 'Due' }}<small>{{ t.due|nice_date }}</small></span>{% endif %}
-        {% if ms[t.id][1] %}<span class="prog"><b>{{ ms[t.id][0] }}/{{ ms[t.id][1] }}</b> subtasks</span>{% endif %}
+        {% if ms[t.id][1] %}<span class="prog"><b>{{ ms[t.id][0] }}/{{ ms[t.id][1] }}</b> {{ 'tasks' if t.epic_no else 'subtasks' }}</span>{% endif %}
         <span class="cc" {% if not cm[t.id] %}hidden{% endif %}><b class="n">{{ cm[t.id] }}</b> comment{{ '' if cm[t.id] == 1 else 's' }}</span>
         {% for tg in tags[t.id] %}<a class="chip" href="/?tag={{ tg }}">#{{ tg }}</a>{% endfor %}
       </div>
+      {% if t.epic_no %}<div class="epic-stack" hidden></div>{% endif %}
     </div>
     {% endfor %}
     <div class="empty" {% if columns[st] %}hidden{% endif %}>{{ {'open':'Nothing open.','doing':'No tasks in progress.','blocked':'Nothing blocked.','done':'Nothing done yet.'}[st] }}</div>
@@ -110,10 +134,13 @@
   {% endfor %}
 </div>
 <script>
-window.recount = () => document.querySelectorAll('.col').forEach(c => { const n = c.querySelectorAll('.task:not([hidden])').length; c.querySelector('.n').textContent = n; c.querySelector('.empty').hidden = n > 0; });
+// Members inside an epic count once, as the epic: only a column's direct children are counted.
+window.recount = () => document.querySelectorAll('.col').forEach(c => { const n = c.querySelectorAll(':scope > .task:not([hidden])').length; c.querySelector('.n').textContent = n; c.querySelector('.empty').hidden = n > 0; });
 // Owner filter: All / Steve / Matt. Defaults to you; after that, whatever you last picked (per browser).
+// An epic stays visible when any task inside it is the filtered person's, whoever owns the epic.
 window.applyOwnerFilter = (who) => {
   document.querySelectorAll('.task').forEach(el => { el.hidden = !!who && el.dataset.owner !== who; });
+  document.querySelectorAll('.task.epic').forEach(ep => { if (ep.hidden && ep.querySelector('.epic-stack .task:not([hidden])')) ep.hidden = false; });
   document.querySelectorAll('#owner-seg button').forEach(b => b.classList.toggle('on', b.dataset.owner === who));
   const sgCol = document.querySelector('.col[data-status="suggested"]'); if (sgCol) { const was = sgCol.hidden; sgCol.hidden = !document.querySelector('.task.sg:not([hidden])'); if (was && !sgCol.hidden) sgCol.parentElement.scrollLeft = 0; }
   const shown = document.querySelectorAll('.task:not(.sg):not([hidden])').length, total = document.querySelectorAll('.task:not(.sg)').length;
@@ -131,25 +158,152 @@ window.applyOwnerFilter = (who) => {
     applyOwnerFilter(b.dataset.owner);
   });
 })();
+// ---- epics: fold members into their epic's card, remember which are open ----
+const EPIC_OPEN = new Set((() => { try { return JSON.parse(localStorage.getItem('board.epicOpen') || '[]'); } catch (e) { return []; } })());
+const epicCard = id => document.querySelector(`.col > .task.epic[data-id="${id}"]`);
+function paintEpicCard(ep) {
+  const open = EPIC_OPEN.has(ep.dataset.id), stack = ep.querySelector('.epic-stack');
+  const n = stack ? stack.querySelectorAll('.task').length : 0;
+  ep.dataset.members = String(n);
+  ep.querySelector('.n-in').textContent = n;
+  ep.querySelector('.tri').classList.toggle('open', open && n > 0);
+  if (stack) stack.hidden = !(open && n > 0);
+}
+function toggleEpic(id) {
+  if (EPIC_OPEN.has(id)) EPIC_OPEN.delete(id); else EPIC_OPEN.add(id);
+  try { localStorage.setItem('board.epicOpen', JSON.stringify([...EPIC_OPEN])); } catch (e) {}
+  const ep = epicCard(id); if (ep) paintEpicCard(ep);
+}
+// A member folds into its epic when that epic is on the board; otherwise it stays a normal card
+// with an "inside EPIC-nnn" chip. Called on load and again after a card changes epic.
+window.refold = (card) => {
+  const cards = card ? [card] : [...document.querySelectorAll('.task[data-epic]')].filter(c => c.dataset.epic);
+  const touched = new Set();
+  cards.forEach(c => {
+    const ep = c.dataset.epic ? epicCard(c.dataset.epic) : null;
+    const stack = ep && ep.querySelector('.epic-stack');
+    if (stack && c.parentElement !== stack) { stack.appendChild(c); touched.add(ep); }
+    if (!stack && c.parentElement.classList.contains('epic-stack')) {
+      // out of an epic (or the epic left the board): back into the member's own column
+      const col = document.querySelector(`.col[data-status="${c.dataset.status || 'open'}"]`);
+      touched.add(c.parentElement.closest('.task.epic')); if (col) col.insertBefore(c, col.querySelector('.empty'));
+    }
+  });
+  touched.forEach(ep => ep && paintEpicCard(ep));
+  document.querySelectorAll(".task.epic").forEach(paintEpicCard);
+  recount();
+};
+document.querySelectorAll('.col .task').forEach(c => { c.dataset.status = c.closest('.col').dataset.status; });
+refold();
+// Clicking an epic card's body toggles the stack; the label, the title and the tag still work.
+document.addEventListener('click', e => {
+  const card = e.target.closest('.task.epic');
+  if (!card || e.target.closest('.epic-stack, a, button, select, form')) return;
+  if (e.target.closest('.title, .refno')) return;
+  e.stopImmediatePropagation(); toggleEpic(card.dataset.id);
+}, true);
+
 (() => {
   let dragged = null;
   document.querySelectorAll('.task:not(.sg)').forEach(el => {
-    el.addEventListener('dragstart', e => { dragged = el; el.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
-    el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragged = null; document.querySelectorAll('.col.over').forEach(c => c.classList.remove('over')); });
+    el.addEventListener('dragstart', e => { e.stopPropagation(); dragged = el; el.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
+    el.addEventListener('dragend', () => { el.classList.remove('dragging'); dragged = null; disarm(); document.querySelectorAll('.col.over').forEach(c => c.classList.remove('over')); });
   });
   document.querySelectorAll('.col:not([data-status="suggested"])').forEach(col => {
     col.addEventListener('dragover', e => { if (!dragged) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; col.classList.add('over'); });
     col.addEventListener('dragleave', e => { if (!col.contains(e.relatedTarget)) col.classList.remove('over'); });
     col.addEventListener('drop', async e => {
       e.preventDefault(); col.classList.remove('over'); if (!dragged) return;
-      const status = col.dataset.status, id = dragged.dataset.id, from = dragged.parentElement; if (from === col) return;
-      col.insertBefore(dragged, col.querySelector('.empty')); recount();
+      const status = col.dataset.status, id = dragged.dataset.id, from = dragged.parentElement, card = dragged;
+      if (from === col || card.dataset.status === status) return;
+      col.insertBefore(card, col.querySelector('.empty')); card.dataset.status = status; recount();
       const r = await fetch(`/api/tasks/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
-      if (!r.ok) { from.insertBefore(dragged, from.querySelector('.empty')); recount(); location.reload(); }
+      if (!r.ok) { from.insertBefore(card, from.querySelector('.empty')); recount(); location.reload(); return; }
+      const t = await r.json();
+      // done lets a member out of its epic; anything else keeps it folded inside
+      card.dataset.epic = t.epic_id || '';
+      const chip = card.querySelector('.epic-in'); if (chip && !t.epic_id) chip.remove();
+      refold(card);
     });
+  });
+
+  // ---- drag-and-hold: keep a card over another one for a second to drop it inside ----
+  const HOLD_MS = 1000; let arm = { id: null, timer: null, card: null };
+  function disarm() { if (arm.timer) clearTimeout(arm.timer); if (arm.card) arm.card.classList.remove('arming', 'target'); arm = { id: null, timer: null, card: null }; }
+  const isEpic = c => !!c.dataset.epicNo || parseInt(c.dataset.members || '0', 10) > 0;
+  function canDropInside(src, dst) {
+    if (!src || src === dst || dst.classList.contains('sg')) return false;
+    if (isEpic(src)) return false;                     // an epic cannot go inside another
+    if (dst.dataset.epic) return false;                // a member cannot take members
+    if (src.dataset.epic === dst.dataset.id) return false;
+    return true;
+  }
+  document.querySelectorAll('.col > .task:not(.sg)').forEach(card => {
+    card.addEventListener('dragenter', e => {
+      if (!canDropInside(dragged, card)) return;
+      if (arm.card === card) return;
+      disarm(); arm.card = card; card.classList.add('arming');
+      arm.timer = setTimeout(() => { arm.id = card.dataset.id; arm.timer = null; card.classList.remove('arming'); card.classList.add('target'); }, HOLD_MS);
+    });
+    card.addEventListener('dragleave', e => { if (arm.card === card && !card.contains(e.relatedTarget)) disarm(); });
+    card.addEventListener('dragover', e => { if (arm.card === card) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } });
+    card.addEventListener('drop', async e => {
+      if (arm.id !== card.dataset.id || !dragged) { disarm(); return; }   // not held long enough: the column handles it
+      e.preventDefault(); e.stopPropagation();
+      const src = dragged, dst = card; disarm();
+      if (!isEpic(dst)) { epicDialog([src, dst]); return; }              // two plain cards: create the epic
+      const fd = new FormData(); fd.append('epic_id', dst.dataset.id);
+      const r = await fetch(`/tasks/${src.dataset.id}/epic`, { method: 'POST', body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(j.detail || 'Could not add it'); return; }
+      src.dataset.epic = dst.dataset.id;
+      if (!src.querySelector('.epic-in')) { const s = document.createElement('span'); s.className = 'epic-in'; s.textContent = '↳ ' + dst.querySelector('.refno').textContent; src.querySelector('.ref').appendChild(s); }
+      EPIC_OPEN.add(dst.dataset.id); try { localStorage.setItem('board.epicOpen', JSON.stringify([...EPIC_OPEN])); } catch (err) {}
+      refold(src);
+    });
+  });
+
+  // The creation point: two plain cards dropped together become a new EPIC-nnn with both inside.
+  function epicDialog(cards) {
+    const d = document.getElementById('new-epic'), f = document.getElementById('ne-form');
+    f.querySelector('.ep-list').innerHTML = cards.map(c => `<li><span class="mono">${c.querySelector('.refno').textContent}</span> ${c.dataset.title.replace(/[&<>]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[ch]))}</li>`).join('');
+    f.ids.value = cards.map(c => c.dataset.id).join(','); f.title.value = ''; f.querySelector('.ep-err').hidden = true;
+    d.showModal(); f.title.focus();
+  }
+  // the dialog sits after this script in the document, so wire it once the page has parsed
+  document.addEventListener('DOMContentLoaded', () => {
+  const nef = document.getElementById('ne-form');
+  nef.addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = nef.querySelector('.ep-err'), btn = nef.querySelector('button[type=submit]');
+    if (!nef.title.value.trim()) { err.textContent = 'The epic needs a title.'; err.hidden = false; return; }
+    btn.disabled = true;
+    const r = await fetch('/tasks/epics/new', { method: 'POST', body: new FormData(nef) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) { err.textContent = j.detail || j.error || 'Could not create the epic'; err.hidden = false; btn.disabled = false; return; }
+    EPIC_OPEN.add(String(j.id)); try { localStorage.setItem('board.epicOpen', JSON.stringify([...EPIC_OPEN])); } catch (err2) {}
+    location.href = `/?task=${j.ref}`;
+  });
+  nef.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); nef.requestSubmit(); } });
   });
 })();
 </script>
+<dialog id="new-epic" aria-labelledby="ne-h">
+  <form class="nt" id="ne-form">
+    <div class="nt-head"><h2 id="ne-h">New epic</h2><button class="nt-x" type="button" aria-label="Close" onclick="document.getElementById('new-epic').close()">✕</button></div>
+    <div class="nt-body">
+      <div class="nt-f"><span class="nt-l">Group these tasks</span><ul class="ep-list"></ul></div>
+      <label class="nt-f"><span class="nt-l">Epic title</span><input class="nt-title" type="text" name="title" required maxlength="200" placeholder="What is this group of work?" autocomplete="off"></label>
+      <input type="hidden" name="ids" value="">
+      <div class="ep-err" hidden></div>
+    </div>
+    <div class="nt-foot">
+      <span class="nt-hint"><kbd>⌘</kbd><kbd>↩</kbd> to create</span>
+      <button class="btn quiet" type="button" onclick="document.getElementById('new-epic').close()">Cancel</button>
+      <button class="btn" type="submit">Create epic</button>
+    </div>
+  </form>
+</dialog>
 <dialog id="new-task" aria-labelledby="nt-h">
   <form method="post" action="/tasks/new" class="nt" id="nt-form">
     <div class="nt-head">
@@ -187,8 +341,8 @@ window.applyOwnerFilter = (who) => {
   </form>
 </dialog>
 <style>
-  #new-task{border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:var(--surface-raised);color:var(--text-primary);padding:0;width:min(560px,92vw);box-shadow:var(--shadow-lift)}
-  #new-task::backdrop{background:rgba(15,17,22,.45)}
+  #new-task,#new-epic{border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:var(--surface-raised);color:var(--text-primary);padding:0;width:min(560px,92vw);box-shadow:var(--shadow-lift)}
+  #new-task::backdrop,#new-epic::backdrop{background:rgba(15,17,22,.45)}
   .nt{display:flex;flex-direction:column}
   .nt-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px 0}
   .nt h2{margin:0;font-size:18px;line-height:24px;font-weight:600;letter-spacing:-.01em}

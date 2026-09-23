@@ -70,7 +70,28 @@ function renderPane(t) {
   requestAnimationFrame(() => { const tog = $('pane-desc-toggle'); tog.hidden = d.scrollHeight <= d.clientHeight + 2; tog.textContent = 'Show more'; });
   renderMilestones(t.milestones || []);
   renderComments(t.comments || []);
+  paintEpic(t);
   $('pane-history').innerHTML = '<div class="muted">Loading…</div>';
+}
+
+// ---------- epics ----------
+
+function paintEpic(t) {
+  const isEpic = !!t.epic_no;
+  const self = $('chip-epic-self'), chip = $('chip-epic');
+  if (self) { self.hidden = !isEpic; if (isEpic) $('chip-epic-self-lbl').textContent = `${t.label} · ${(t.members || []).length} inside`; }
+  if (chip) {
+    chip.hidden = isEpic;
+    $('chip-epic-lbl').textContent = t.epic_id ? `↳ ${t.epic_label}` : 'none';
+    const sel = $('sel-epic'); if (sel) sel.value = t.epic_id ? String(t.epic_id) : '';
+  }
+  $('pane-ref').textContent = t.label || t.ref || `#${t.id}`;
+}
+async function paneSetEpic(value) {
+  try {
+    paneTask = await api('PATCH', `/api/tasks/${paneTaskId}`, { epic_id: value ? Number(value) : null });
+    paintEpic(paneTask); renderMilestones(paneTask.milestones || []); reflectToCard(paneTask);
+  } catch (e) { alert(`Could not change the epic: ${e.message}`); $('sel-epic').value = paneTask.epic_id ? String(paneTask.epic_id) : ''; }
 }
 
 function paintStatus(s) { $('chip-status-lbl').textContent = s; $('chip-status-dot').style.background = STATUS_VAR[s] || 'var(--dim)'; $('pane-dot').style.background = STATUS_VAR[s] || 'var(--dim)'; }
@@ -85,7 +106,11 @@ function renderTags(tags) {
 function renderMilestones(ms) {
   const done = ms.filter(m => m.done).length;
   $('pane-ms-count').textContent = ms.length ? `${done}/${ms.length}` : '';
-  $('pane-milestones').innerHTML = ms.length ? ms.map(m => `<div class="mi ${m.done ? 'done' : ''}"><button type="button" class="tick" onclick="paneToggleMilestone(${m.id})" aria-label="toggle"></button><span class="t">${esc(m.text)}</span><button type="button" class="del" onclick="paneDeleteMilestone(${m.id})" aria-label="delete">×</button></div>`).join('') : '<div class="muted">No milestones yet.</div>';
+  // A mirror milestone stands for a task inside this epic: its text opens that task, its tick
+  // follows that task's status, and removing it takes the task out of the epic.
+  $('pane-milestones').innerHTML = ms.length ? ms.map(m => m.linked_task_id
+    ? `<div class="mi mirror ${m.done ? 'done' : ''}"><button type="button" class="tick" disabled aria-label="follows the task"></button><span class="t"><a href="#" onclick="openTask(${m.linked_task_id}); return false;">${esc(m.text)}</a></span><span class="st">${m.done ? 'done' : 'inside'}</span><button type="button" class="del" onclick="paneDeleteMilestone(${m.id})" aria-label="take out of the epic" title="Take out of the epic">×</button></div>`
+    : `<div class="mi ${m.done ? 'done' : ''}"><button type="button" class="tick" onclick="paneToggleMilestone(${m.id})" aria-label="toggle"></button><span class="t">${esc(m.text)}</span><button type="button" class="del" onclick="paneDeleteMilestone(${m.id})" aria-label="delete">×</button></div>`).join('') : '<div class="muted">No milestones yet.</div>';
 }
 function renderComments(cs) {
   $('pane-conv-n').textContent = cs.length;
@@ -127,6 +152,14 @@ function reflectToCard(t) {
     const cc = meta.querySelector('.cc'); if (cc) { const n = t.comment_count ?? (t.comments || []).length; cc.innerHTML = '<b class="n"></b> ' + (n === 1 ? 'comment' : 'comments'); cc.querySelector('.n').textContent = n; cc.hidden = !n; }
     meta.querySelectorAll('.chip').forEach(c => c.remove());
     (t.tags || []).forEach(tg => { const a = document.createElement('a'); a.className = 'chip'; a.href = `/?tag=${tg}`; a.textContent = `#${tg}`; meta.appendChild(a); });
+  }
+  // epic membership: the chip on the card, then fold it into (or out of) its epic on the board
+  if (!t.epic_no) {
+    const was = card.dataset.epic || ''; card.dataset.epic = t.epic_id ? String(t.epic_id) : '';
+    let chip = card.querySelector('.epic-in');
+    if (t.epic_id) { if (!chip) { chip = document.createElement('span'); chip.className = 'epic-in'; card.querySelector('.ref').appendChild(chip); } chip.textContent = `↳ ${t.epic_label}`; }
+    else if (chip) chip.remove();
+    if (was !== card.dataset.epic && typeof refold === 'function') refold(card);
   }
   if (typeof applyOwnerFilter === 'function') { const on = document.querySelector('#owner-seg button.on'); applyOwnerFilter(on ? on.dataset.owner : ''); }
 }

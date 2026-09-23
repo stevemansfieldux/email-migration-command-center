@@ -62,6 +62,9 @@
   .sugg-bar[hidden]{display:none}
   .sugg-bar b{color:var(--blocked)}
   .sugg-bar .bs{display:flex;gap:6px} .sugg-bar button{padding:4px 10px;font-size:12px;border-radius:4px;cursor:pointer}
+  .chip-epic{color:var(--info)} .chip-epic[hidden]{display:none}
+  .pms .mi.mirror .t a{color:var(--accent);text-decoration:none} .pms .mi.mirror .tick{cursor:default;opacity:.7}
+  .pms .mi.mirror .st{font:10px var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
 </style>
 
 <div id="task-backdrop" onclick="closeTask()"></div>
@@ -85,6 +88,11 @@
         <input type="date" id="inp-due" onchange="paneSave('due', this.value)"></span>
       <span class="chip2" id="chip-owner"><span class="av" id="chip-owner-av">?</span><span id="chip-owner-lbl">unassigned</span>
         <select id="sel-owner" onchange="paneSave('owner', this.value)"><option value="unassigned">unassigned</option>{% for u in users %}<option value="{{ u.name }}">{{ u.name }}</option>{% endfor %}</select></span>
+      {# Epic chips. A member shows which epic it sits in and can move or leave through the select;
+         an epic shows how many tasks are inside it. Mirrors the board's drag-and-hold. #}
+      <span class="chip2 chip-epic" id="chip-epic" hidden><span class="lbl">epic</span><span id="chip-epic-lbl">none</span>
+        <select id="sel-epic" onchange="paneSetEpic(this.value)"><option value="">none</option>{% for e in epics %}<option value="{{ e.id }}">{{ e.label }} · {{ e.title }}</option>{% endfor %}</select></span>
+      <span class="chip2 chip-epic" id="chip-epic-self" hidden title="Tasks inside this epic"><span class="lbl">epic</span><span id="chip-epic-self-lbl"></span></span>
     </div>
     <nav class="ptabs">
       <button type="button" data-tab="brief" class="on" onclick="showPaneTab('brief')">Brief</button>

@@ -64,6 +64,11 @@ class Task(SQLModel, table=True):
     source_meeting: str = ""      # EMOH path, e.g. meetings/2026-09-12-steve-matt-planning.md
     meeting_date: Optional[str] = None
     dup_of: Optional[int] = None  # extractor thinks this re-treads an existing task
+    # Epics: a task dropped inside another one. The member stays an ordinary task; the epic
+    # gets a mirror milestone for it. epic_no is set once, at creation: this task IS an epic
+    # (EPIC-001, EPIC-002 ...) and the number is never reused or cleared.
+    epic_id: Optional[int] = Field(default=None, index=True)
+    epic_no: Optional[int] = None
     archived_at: Optional[datetime] = None   # soft delete; nothing is hard-deleted via the API
     created_at: datetime = Field(default_factory=now)
     updated_at: datetime = Field(default_factory=now)
@@ -101,7 +106,13 @@ class Milestone(SQLModel, table=True):
     text: str
     done: bool = False
     sort: int = 0
+    linked_task_id: Optional[int] = None   # the epic member this milestone mirrors
     created_at: datetime = Field(default_factory=now)
+
+
+def epic_label(no) -> str:
+    """EPIC-001. Empty when the task is not an epic."""
+    return f"EPIC-{int(no):03d}" if no else ""
 
 
 class Notification(SQLModel, table=True):

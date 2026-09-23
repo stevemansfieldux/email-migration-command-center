@@ -142,9 +142,11 @@ def _apply(task: db.Task, fields: dict, actor: str = "", s=None) -> None:
         if old != new:
             setattr(task, k, new)
             if s is not None and task.id and k != "detail":
-                log_event(s, task.id, actor, "status" if k == "status" else "field", f"{k}: {old or '—'} → {new or '—'}")
+                log_event(s, task.id, actor, "status" if k == "status" else "field", f"{k}: {old or '(none)'} to {new or '(none)'}")
             elif s is not None and task.id:
                 log_event(s, task.id, actor, "field", "context edited")
+            if k == "status" and s is not None and task.id:
+                _sync_epic_on_status(s, task, new)
     task.updated_at = db.now()
 
 
@@ -164,6 +166,131 @@ def _get_task(s, task_id: int, allow_archived: bool = False) -> db.Task:
     if not t or (t.archived_at and not allow_archived):
         raise HTTPException(404, "no such task")
     return t
+
+
+# ---------- epics ----------
+# An epic is an ordinary task that carries an epic_no (EPIC-001 ...). Members carry epic_id
+# and the epic carries one mirror milestone per member (linked_task_id). Done lets a member
+# out and ticks its mirror; reopening puts it back. Epics do not nest. Archiving an epic sets
+# its members free. Same behaviour as the MRO board, rebuilt here; nothing is shared.
+
+def _sync_epic_on_status(s, t: db.Task, status: str) -> None:
+    if status in ("done", "dismissed"):
+        if t.epic_id:
+            for m in s.exec(select(db.Milestone).where(db.Milestone.task_id == t.epic_id, db.Milestone.linked_task_id == t.id)).all():
+                m.done = True; s.add(m)
+            epic = s.get(db.Task, t.epic_id)
+            if epic:
+                epic.updated_at = db.now(); s.add(epic)
+            t.epic_id = None
+    elif not t.epic_id:
+        m = s.exec(select(db.Milestone).where(db.Milestone.linked_task_id == t.id)).first()
+        if m:
+            epic = s.get(db.Task, m.task_id)
+            if epic and not epic.archived_at:
+                m.done = False; s.add(m); t.epic_id = epic.id
+                epic.updated_at = db.now(); s.add(epic)
+
+
+def _is_epic(s, t: db.Task) -> bool:
+    return bool(t.epic_no) or s.exec(select(db.Task).where(db.Task.epic_id == t.id)).first() is not None
+
+
+def add_to_epic(s, t: db.Task, epic: db.Task, actor: str) -> str:
+    """Put t inside epic. Raises 400 on the guards: itself, not an epic, nesting either way."""
+    if t.id == epic.id:
+        raise HTTPException(400, "a task cannot go inside itself")
+    if epic.archived_at:
+        raise HTTPException(400, f"{db.ref(epic.id)} is archived")
+    if not epic.epic_no:
+        raise HTTPException(400, f"{db.ref(epic.id)} is not an epic; drop the two cards together to create one")
+    if epic.epic_id:
+        raise HTTPException(400, f"{db.ref(epic.id)} is inside {db.ref(epic.epic_id)}; epics do not nest")
+    if _is_epic(s, t):
+        raise HTTPException(400, f"{db.ref(t.id)} is an epic itself; epics do not nest")
+    label = db.epic_label(epic.epic_no)
+    if t.epic_id == epic.id:
+        return f"{db.ref(t.id)} is already inside {label}"
+    live = t.status not in ("done", "dismissed")
+    if live:
+        t.epic_id = epic.id
+    mirror = s.exec(select(db.Milestone).where(db.Milestone.task_id == epic.id, db.Milestone.linked_task_id == t.id)).first()
+    if not mirror:
+        for old in s.exec(select(db.Milestone).where(db.Milestone.linked_task_id == t.id, db.Milestone.task_id != epic.id)).all():
+            s.delete(old)
+        n = len(s.exec(select(db.Milestone).where(db.Milestone.task_id == epic.id)).all())
+        s.add(db.Milestone(task_id=epic.id, text=f"{db.ref(t.id)} · {t.title}"[:300], sort=n, linked_task_id=t.id, done=not live))
+    else:
+        mirror.done = not live; s.add(mirror)
+    t.updated_at = db.now(); epic.updated_at = db.now(); s.add(t); s.add(epic)
+    log_event(s, t.id, actor, "field", f"epic: {label}")
+    log_event(s, epic.id, actor, "milestone", f"+ {db.ref(t.id)} {t.title}"[:400])
+    return f"{db.ref(t.id)} is now inside {label}"
+
+
+def remove_from_epic(s, t: db.Task, actor: str) -> str:
+    """Take t out of its epic by hand. Its mirror milestone goes too."""
+    epic_id = t.epic_id
+    if not epic_id:
+        mirror = s.exec(select(db.Milestone).where(db.Milestone.linked_task_id == t.id)).first()
+        if not mirror:
+            raise HTTPException(400, f"{db.ref(t.id)} is not inside an epic")
+        epic_id = mirror.task_id
+    for m in s.exec(select(db.Milestone).where(db.Milestone.linked_task_id == t.id)).all():
+        s.delete(m)
+    t.epic_id = None; t.updated_at = db.now(); s.add(t)
+    epic = s.get(db.Task, epic_id)
+    label = db.epic_label(epic.epic_no) if epic and epic.epic_no else db.ref(epic_id)
+    if epic:
+        epic.updated_at = db.now(); s.add(epic)
+        log_event(s, epic.id, actor, "milestone", f"- {db.ref(t.id)}")
+    log_event(s, t.id, actor, "field", f"epic: {label} to (none)")
+    return f"{db.ref(t.id)} taken out of {label}"
+
+
+def create_epic(s, title: str, member_ids: list[int], owner: str, actor: str) -> tuple[db.Task, list[str]]:
+    """A new epic task numbered after the highest epic_no ever issued, with member_ids inside."""
+    title = title.strip()[:200]
+    if not title:
+        raise HTTPException(400, "give the epic a title")
+    top = max((t.epic_no or 0 for t in s.exec(select(db.Task).where(db.Task.epic_no.is_not(None))).all()), default=0)
+    epic = db.Task(title=title, owner=owner or "unassigned", source="manual", created_by=actor, epic_no=top + 1)
+    s.add(epic); s.commit(); s.refresh(epic)
+    log_event(s, epic.id, actor, "created", db.epic_label(epic.epic_no))
+    msgs = []
+    for mid in member_ids:
+        m = s.get(db.Task, mid)
+        if not m or m.archived_at:
+            msgs.append(f"{db.ref(mid)}: no such task"); continue
+        try:
+            msgs.append(add_to_epic(s, m, epic, actor))
+        except HTTPException as e:
+            msgs.append(str(e.detail))
+    s.commit(); s.refresh(epic)
+    return epic, msgs
+
+
+def free_members(s, epic: db.Task) -> None:
+    for m in s.exec(select(db.Task).where(db.Task.epic_id == epic.id)).all():
+        m.epic_id = None; m.updated_at = db.now(); s.add(m)
+
+
+def epic_labels(s) -> dict[int, str]:
+    return {t.id: db.epic_label(t.epic_no) for t in s.exec(select(db.Task).where(db.Task.epic_no.is_not(None))).all()}
+
+
+def epic_member_counts(s) -> dict[int, int]:
+    """{epic_id: live members}. A member is live while it is open, doing or blocked."""
+    out: dict[int, int] = {}
+    for t in s.exec(select(db.Task).where(db.Task.epic_id.is_not(None), db.Task.archived_at.is_(None), db.Task.status.in_(["open", "doing", "blocked"]))).all():
+        out[t.epic_id] = out.get(t.epic_id, 0) + 1
+    return out
+
+
+def epics_live(s) -> list[dict]:
+    """Every unarchived epic, for the drawer's picker."""
+    rows = s.exec(select(db.Task).where(db.Task.epic_no.is_not(None), db.Task.archived_at.is_(None)).order_by(db.Task.epic_no)).all()
+    return [{"id": t.id, "label": db.epic_label(t.epic_no), "title": t.title, "status": t.status} for t in rows]
 
 
 def tags_of(s, task_id: TaskId) -> list[str]:
@@ -290,9 +417,37 @@ def board(request: Request, tag: Optional[str] = None, task: Optional[str] = Non
         ids = [t.id for t in tasks] + [t.id for t in sugg]
         tags, ms, cm = tag_map(s, ids), milestone_map(s, ids), comment_map(s, ids)
         dup_titles = {t.dup_of: s.get(db.Task, t.dup_of).title for t in sugg if t.dup_of and s.get(db.Task, t.dup_of)}
+        labels, counts, epics = epic_labels(s), epic_member_counts(s), epics_live(s)
     columns = {st: [t for t in tasks if t.status == st] for st in STATUSES}
     return page(request, "board.html", user, columns=columns, statuses=STATUSES, total=len(tasks), tab="tasks",
-                suggestions=sugg, tags=tags, ms=ms, cm=cm, dup_titles=dup_titles, tag=tag, open_task=db.parse_ref(task), users=users_all())
+                suggestions=sugg, tags=tags, ms=ms, cm=cm, dup_titles=dup_titles, tag=tag, open_task=db.parse_ref(task), users=users_all(),
+                epic_labels=labels, epic_counts=counts, epics=epics)
+
+
+@app.post("/tasks/epics/new")
+def task_epic_new(title: str = Form(...), ids: str = Form(""), user: db.User = auth.PageUser):
+    """The board's creation point: two cards dropped together. Makes the EPIC-nnn task with both inside."""
+    member_ids = [i for i in (db.parse_ref(x) for x in ids.split(",")) if i]
+    with db.session() as s:
+        epic, msgs = create_epic(s, title, member_ids, owner=user.name, actor=user.name)
+        return {"ok": True, "id": epic.id, "ref": db.ref(epic.id), "label": db.epic_label(epic.epic_no), "messages": msgs}
+
+
+@app.post("/tasks/{task_id}/epic")
+def task_epic(task_id: TaskId, epic_id: str = Form(""), remove: str = Form(""), user: db.User = auth.PageUser):
+    """Board and drawer: put a card inside an epic, or take it out."""
+    with db.session() as s:
+        t = _get_task(s, task_id)
+        if remove or not epic_id:
+            msg = remove_from_epic(s, t, user.name)
+        else:
+            eid = db.parse_ref(epic_id)
+            epic = s.get(db.Task, eid) if eid else None
+            if not epic:
+                raise HTTPException(404, "no such epic")
+            msg = add_to_epic(s, t, epic, user.name)
+        s.commit(); s.refresh(t)
+        return {"ok": True, "message": msg, "epic_id": t.epic_id}
 
 
 @app.post("/tasks/new")
@@ -400,7 +555,7 @@ def add_comment_ui(task_id: TaskId, body: str = Form(...), user: db.User = auth.
 @app.post("/tasks/{task_id}/archive")
 def archive_ui(task_id: TaskId, user: db.User = auth.PageUser):
     with db.session() as s:
-        t = _get_task(s, task_id); t.archived_at = db.now(); t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "archived"); s.commit()
+        t = _get_task(s, task_id); t.archived_at = db.now(); t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "archived"); free_members(s, t); s.commit()
     return RedirectResponse("/", status_code=303)
 
 
@@ -471,6 +626,8 @@ def milestone_add(task_id: TaskId, text: str = Form(...), user: db.User = auth.P
 def milestone_toggle(task_id: TaskId, mid: int, user: db.User = auth.PageUser):
     with db.session() as s:
         m = s.get(db.Milestone, mid)
+        if m and m.linked_task_id:
+            raise HTTPException(400, "this milestone mirrors a task inside the epic; change that task's status instead")
         if m and m.task_id == task_id:
             m.done = not m.done; s.add(m)
             t = _get_task(s, task_id); t.updated_at = db.now(); s.add(t); s.commit()
@@ -672,12 +829,20 @@ class TaskIn(BaseModel):
 class TaskPatch(BaseModel):
     title: Optional[str] = None; detail: Optional[str] = None; owner: Optional[str] = None; priority: Optional[str] = None
     due: Optional[str] = None; status: Optional[str] = None
+    # epic_id: a task id or ref puts the task inside that epic (a mirror milestone lands on the
+    # epic); null takes it out. Absent means untouched.
+    epic_id: Optional[int | str] = None
 
 
 def _task_out(s, t: db.Task) -> dict:
     d, n = milestone_map(s, [t.id])[t.id]
+    members = [m.id for m in s.exec(select(db.Task).where(db.Task.epic_id == t.id, db.Task.archived_at.is_(None))).all()] if t.epic_no else []
+    parent = s.get(db.Task, t.epic_id) if t.epic_id else None
     return {**t.model_dump(), "ref": db.ref(t.id), "tags": tags_of(s, t.id), "milestones_done": d, "milestones_total": n,
-            "comment_count": comment_map(s, [t.id])[t.id]}
+            "comment_count": comment_map(s, [t.id])[t.id],
+            "label": db.epic_label(t.epic_no) or db.ref(t.id), "members": members,
+            "epic_label": (db.epic_label(parent.epic_no) if parent and parent.epic_no else (db.ref(parent.id) if parent else "")),
+            "epic_title": parent.title if parent else ""}
 
 
 @app.get("/api/tasks", tags=["tasks"])
@@ -732,16 +897,59 @@ def api_history(task_id: TaskId, user: db.User = auth.CurrentUser):
 @app.patch("/api/tasks/{task_id}", tags=["tasks"])
 def api_patch_task(task_id: TaskId, payload: TaskPatch, user: db.User = auth.CurrentUser):
     with db.session() as s:
-        t = _get_task(s, task_id); _apply(t, payload.model_dump(exclude_none=True), user.name, s); s.add(t); s.commit(); s.refresh(t)
-        return _task_out(s, t)
+        t = _get_task(s, task_id)
+        epic_msg = ""
+        if "epic_id" in payload.model_fields_set:
+            raw = payload.epic_id
+            if raw in (None, "", 0, "0", "null"):
+                epic_msg = remove_from_epic(s, t, user.name)
+            else:
+                eid = db.parse_ref(raw)
+                epic = s.get(db.Task, eid) if eid else None
+                if not epic:
+                    raise HTTPException(400, "epic_id must be a task id or ref, or null to take it out")
+                epic_msg = add_to_epic(s, t, epic, user.name)
+        _apply(t, payload.model_dump(exclude_none=True, exclude={"epic_id"}), user.name, s); s.add(t); s.commit(); s.refresh(t)
+        out = _task_out(s, t)
+        if epic_msg:
+            out["epic"] = epic_msg
+        return out
 
 
 @app.delete("/api/tasks/{task_id}", tags=["tasks"])
 def api_delete_task(task_id: TaskId, user: db.User = auth.CurrentUser):
-    """Archives. Nothing is hard-deleted; POST /restore brings it back."""
+    """Archives. Nothing is hard-deleted; POST /restore brings it back. Archiving an epic frees its members."""
     with db.session() as s:
-        t = _get_task(s, task_id); t.archived_at = db.now(); t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "archived"); s.commit()
+        t = _get_task(s, task_id); t.archived_at = db.now(); t.updated_at = db.now(); s.add(t); log_event(s, t.id, user.name, "archived"); free_members(s, t); s.commit()
     return {"archived": task_id}
+
+
+# epics
+class EpicIn(BaseModel):
+    title: str
+    members: list[int | str] = []
+    owner: Optional[str] = None
+
+
+@app.get("/api/epics", tags=["epics"])
+def api_epics(user: db.User = auth.CurrentUser):
+    """Every unarchived epic with its live member count."""
+    with db.session() as s:
+        counts = epic_member_counts(s)
+        return [{**e, "members": counts.get(e["id"], 0)} for e in epics_live(s)]
+
+
+@app.post("/api/epics", status_code=201, tags=["epics"])
+def api_epic_create(payload: EpicIn, user: db.User = auth.CurrentUser):
+    """Create an epic from existing tasks: {title, members: [ids or refs], owner?}. The epic is a
+    real task numbered EPIC-nnn; each member gets a mirror milestone on it. Done on a member ticks
+    it and lets the member out; reopening puts it back. Epics do not nest. To add a task to an
+    existing epic, PATCH the task with epic_id."""
+    member_ids = [i for i in (db.parse_ref(x) for x in payload.members) if i]
+    with db.session() as s:
+        epic, msgs = create_epic(s, payload.title, member_ids, owner=payload.owner or user.name, actor=user.name)
+        miles = s.exec(select(db.Milestone).where(db.Milestone.task_id == epic.id).order_by(db.Milestone.sort)).all()
+        return {**_task_out(s, epic), "messages": msgs, "milestones": [m.model_dump() for m in miles]}
 
 
 @app.post("/api/tasks/{task_id}/restore", tags=["tasks"])
@@ -898,6 +1106,8 @@ def api_milestone_toggle(mid: int, user: db.User = auth.CurrentUser):
         m = s.get(db.Milestone, mid)
         if not m:
             raise HTTPException(404, "no such milestone")
+        if m.linked_task_id:
+            raise HTTPException(400, "this milestone mirrors a task inside the epic; change that task's status instead")
         m.done = not m.done; s.add(m); log_event(s, m.task_id, user.name, "milestone", f"{'✓' if m.done else '○'} {m.text}"); s.commit(); s.refresh(m)
         return m.model_dump()
 
@@ -908,6 +1118,11 @@ def api_milestone_delete(mid: int, user: db.User = auth.CurrentUser):
         m = s.get(db.Milestone, mid)
         if not m:
             raise HTTPException(404, "no such milestone")
+        if m.linked_task_id:
+            member = s.get(db.Task, m.linked_task_id)
+            if member:
+                remove_from_epic(s, member, user.name); s.commit()
+                return {"deleted": mid, "removed_from_epic": member.id}
         s.delete(m); s.commit()
     return {"deleted": mid}
 
