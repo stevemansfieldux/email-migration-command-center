@@ -62,9 +62,11 @@
   .task.epic{box-shadow:var(--shadow-raised),3px 3px 0 -1px var(--surface-raised),3px 3px 0 0 var(--border-subtle),6px 6px 0 -1px var(--surface-raised),6px 6px 0 0 var(--border-subtle);margin-right:6px}
   .task.epic:hover{box-shadow:var(--shadow-lift),3px 3px 0 -1px var(--surface-raised),3px 3px 0 0 var(--border-strong),6px 6px 0 -1px var(--surface-raised),6px 6px 0 0 var(--border-subtle)}
   .ref{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .epic-tag{display:inline-flex;align-items:center;gap:5px;font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--info);border:1px solid color-mix(in srgb,var(--info) 40%,transparent);border-radius:var(--radius-full);padding:0 7px 0 5px;white-space:nowrap;cursor:pointer}
-  .epic-tag .tri{display:inline-block;width:8px;text-align:center;transition:transform .12s var(--ease)}
-  .epic-tag .tri.open{transform:rotate(90deg)}
+  .epic-tag{display:inline-flex;align-items:center;gap:5px;font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--info);border:1px solid color-mix(in srgb,var(--info) 40%,transparent);border-radius:var(--radius-full);padding:0 7px;white-space:nowrap}
+  /* the one control that folds the stack: bottom right of the meta row, next to the task count */
+  .epic-open{margin-left:auto;display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 4px 0 8px;border:1px solid var(--border-subtle);border-radius:var(--radius-full);background:var(--surface-raised);color:var(--text-secondary);font:11px/20px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:border-color .12s var(--ease),color .12s var(--ease)}
+  .epic-open:hover{border-color:var(--border-strong);color:var(--text-primary)}
+  .epic-open .tri{display:inline-block;width:14px;text-align:center;font-size:12px;line-height:20px}
   .epic-in{display:inline-flex;align-items:center;font:11px/16px var(--font-mono);letter-spacing:.04em;color:var(--info);white-space:nowrap}
   .epic-stack{display:flex;flex-direction:column;gap:8px;margin:4px 0 0;padding:10px 0 0 10px;border-left:2px solid var(--border-subtle)}
   .epic-stack[hidden]{display:none}
@@ -113,7 +115,7 @@
     <div class="task {{ 'sample' if t.source == 'sample' else '' }} {{ 'epic' if t.epic_no else '' }}" draggable="true" data-id="{{ t.id }}" data-owner="{{ t.owner }}"
          data-epic="{{ t.epic_id or '' }}" data-epic-no="{{ t.epic_no or '' }}" data-members="{{ epic_counts.get(t.id, 0) }}" data-title="{{ t.title }}">
       <div class="ref"><span class="refno">{{ epic_labels.get(t.id) or ref(t.id) }}</span>
-        {% if t.epic_no %}<span class="epic-tag" title="Show the tasks inside"><span class="tri">▸</span>epic · <span class="n-in">{{ epic_counts.get(t.id, 0) }}</span></span>{% endif %}
+        {% if t.epic_no %}<span class="epic-tag">epic · <span class="n-in">{{ epic_counts.get(t.id, 0) }}</span></span>{% endif %}
         {% if t.epic_id %}<span class="epic-in" title="Inside {{ epic_labels.get(t.epic_id, ref(t.epic_id)) }}">↳ {{ epic_labels.get(t.epic_id, ref(t.epic_id)) }}</span>{% endif %}</div>
       <div class="title"><a href="/tasks/{{ ref(t.id) }}">{{ t.title }}</a></div>
       {% set body = t.detail.split('\n\n> ')[0] %}
@@ -125,6 +127,7 @@
         {% if ms[t.id][1] %}<span class="prog"><b>{{ ms[t.id][0] }}/{{ ms[t.id][1] }}</b> {{ 'tasks' if t.epic_no else 'subtasks' }}</span>{% endif %}
         <span class="cc" {% if not cm[t.id] %}hidden{% endif %}><b class="n">{{ cm[t.id] }}</b> comment{{ '' if cm[t.id] == 1 else 's' }}</span>
         {% for tg in tags[t.id] %}<a class="chip" href="/?tag={{ tg }}">#{{ tg }}</a>{% endfor %}
+        {% if t.epic_no %}<button type="button" class="epic-open" title="Show the tasks inside"><span class="lbl">open</span><span class="tri">▾</span></button>{% endif %}
       </div>
       {% if t.epic_no %}<div class="epic-stack" hidden></div>{% endif %}
     </div>
@@ -166,8 +169,9 @@ function paintEpicCard(ep) {
   const n = stack ? stack.querySelectorAll('.task').length : 0;
   ep.dataset.members = String(n);
   ep.querySelector('.n-in').textContent = n;
-  ep.querySelector('.tri').classList.toggle('open', open && n > 0);
-  if (stack) stack.hidden = !(open && n > 0);
+  const btn = ep.querySelector('.epic-open'); const shown = open && n > 0;
+  if (btn) { btn.querySelector('.lbl').textContent = shown ? 'close' : 'open'; btn.querySelector('.tri').textContent = shown ? '▴' : '▾'; btn.hidden = n === 0; btn.title = shown ? 'Hide the tasks inside' : 'Show the tasks inside'; }
+  if (stack) stack.hidden = !shown;
 }
 function toggleEpic(id) {
   if (EPIC_OPEN.has(id)) EPIC_OPEN.delete(id); else EPIC_OPEN.add(id);
@@ -195,13 +199,12 @@ window.refold = (card) => {
 };
 document.querySelectorAll('.col .task').forEach(c => { c.dataset.status = c.closest('.col').dataset.status; });
 refold();
-// Clicking an epic card's body toggles the stack; the label, the title and the tag still work.
+// Clicking a card always opens its drawer. The open/close control on the meta row is the one
+// thing that folds the stack out (the drawer's click handler ignores buttons).
 document.addEventListener('click', e => {
-  const card = e.target.closest('.task.epic');
-  if (!card || e.target.closest('.epic-stack, a, button, select, form')) return;
-  if (e.target.closest('.title, .refno')) return;
-  e.stopImmediatePropagation(); toggleEpic(card.dataset.id);
-}, true);
+  const btn = e.target.closest('.epic-open'); if (!btn) return;
+  e.preventDefault(); e.stopPropagation(); toggleEpic(btn.closest('.task.epic').dataset.id);
+});
 
 (() => {
   let dragged = null;

@@ -51,8 +51,9 @@ Every write records who did it.
 
 A task can be dropped inside another one. The container is an **epic**: a real task numbered
 `EPIC-001`, `EPIC-002` and so on (the number is issued once and never reused), shown on the
-board as a card with two card edges behind it and an `epic · n` tag. Click the card body or the
-tag to fold the tasks inside it open or closed; that state is remembered per browser. Members
+board as a card with two card edges behind it and an `epic · n` tag. Clicking the card opens its
+drawer like any other; the `open ▾` control at the bottom right of the card folds the tasks
+inside out (and reads `close ▴` while they show). That state is remembered per browser. Members
 stay ordinary tasks and keep their own status column; on the board they fold into the epic's
 card whenever the epic is on the board, and carry an `↳ EPIC-001` chip otherwise.
 
