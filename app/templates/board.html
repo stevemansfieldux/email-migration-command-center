@@ -68,10 +68,9 @@
   .epic-open:hover{border-color:var(--border-strong);color:var(--text-primary)}
   .epic-open .tri{display:inline-block;width:14px;text-align:center;font-size:12px;line-height:20px}
   .epic-in{display:inline-flex;align-items:center;font:11px/16px var(--font-mono);letter-spacing:.04em;color:var(--info);white-space:nowrap}
-  .epic-stack{display:flex;flex-direction:column;gap:8px;margin:4px 0 0;padding:10px 0 0 10px;border-left:2px solid var(--border-subtle)}
+  /* Opened, the members are standalone cards below the epic in the column, indented 8px. */
+  .epic-stack{display:flex;flex-direction:column;gap:12px;margin:-2px 0 0 8px}
   .epic-stack[hidden]{display:none}
-  .epic-stack .task{box-shadow:none;border-color:var(--border-subtle);background:var(--surface-page)}
-  .epic-stack .task:hover{box-shadow:var(--shadow-raised);transform:none}
   .task.arming{outline:2px dashed var(--border-strong);outline-offset:2px}
   .task.target{outline:2px solid var(--accent);outline-offset:2px;background:var(--accent-subtle);position:relative}
   .task.target::after{content:"Drop inside";position:absolute;top:-10px;left:12px;font:11px/16px var(--font-mono);letter-spacing:.06em;text-transform:uppercase;background:var(--accent);color:#fff;border-radius:var(--radius-full);padding:0 8px}
@@ -129,8 +128,8 @@
         {% for tg in tags[t.id] %}<a class="chip" href="/?tag={{ tg }}">#{{ tg }}</a>{% endfor %}
         {% if t.epic_no %}<button type="button" class="epic-open" title="Show the tasks inside"><span class="lbl">open</span><span class="tri">▾</span></button>{% endif %}
       </div>
-      {% if t.epic_no %}<div class="epic-stack" hidden></div>{% endif %}
     </div>
+    {% if t.epic_no %}<div class="epic-stack" data-epic="{{ t.id }}" hidden></div>{% endif %}
     {% endfor %}
     <div class="empty" {% if columns[st] %}hidden{% endif %}>{{ {'open':'Nothing open.','doing':'No tasks in progress.','blocked':'Nothing blocked.','done':'Nothing done yet.'}[st] }}</div>
   </div>
@@ -143,7 +142,7 @@ window.recount = () => document.querySelectorAll('.col').forEach(c => { const n 
 // An epic stays visible when any task inside it is the filtered person's, whoever owns the epic.
 window.applyOwnerFilter = (who) => {
   document.querySelectorAll('.task').forEach(el => { el.hidden = !!who && el.dataset.owner !== who; });
-  document.querySelectorAll('.task.epic').forEach(ep => { if (ep.hidden && ep.querySelector('.epic-stack .task:not([hidden])')) ep.hidden = false; });
+  document.querySelectorAll('.task.epic').forEach(ep => { const st = document.querySelector(`.epic-stack[data-epic="${ep.dataset.id}"]`); if (ep.hidden && st && st.querySelector('.task:not([hidden])')) ep.hidden = false; });
   document.querySelectorAll('#owner-seg button').forEach(b => b.classList.toggle('on', b.dataset.owner === who));
   const sgCol = document.querySelector('.col[data-status="suggested"]'); if (sgCol) { const was = sgCol.hidden; sgCol.hidden = !document.querySelector('.task.sg:not([hidden])'); if (was && !sgCol.hidden) sgCol.parentElement.scrollLeft = 0; }
   const shown = document.querySelectorAll('.task:not(.sg):not([hidden])').length, total = document.querySelectorAll('.task:not(.sg)').length;
@@ -164,8 +163,9 @@ window.applyOwnerFilter = (who) => {
 // ---- epics: fold members into their epic's card, remember which are open ----
 const EPIC_OPEN = new Set((() => { try { return JSON.parse(localStorage.getItem('board.epicOpen') || '[]'); } catch (e) { return []; } })());
 const epicCard = id => document.querySelector(`.col > .task.epic[data-id="${id}"]`);
+const stackOf = id => document.querySelector(`.col > .epic-stack[data-epic="${id}"]`);
 function paintEpicCard(ep) {
-  const open = EPIC_OPEN.has(ep.dataset.id), stack = ep.querySelector('.epic-stack');
+  const open = EPIC_OPEN.has(ep.dataset.id), stack = stackOf(ep.dataset.id);
   const n = stack ? stack.querySelectorAll('.task').length : 0;
   ep.dataset.members = String(n);
   ep.querySelector('.n-in').textContent = n;
@@ -185,12 +185,12 @@ window.refold = (card) => {
   const touched = new Set();
   cards.forEach(c => {
     const ep = c.dataset.epic ? epicCard(c.dataset.epic) : null;
-    const stack = ep && ep.querySelector('.epic-stack');
+    const stack = ep && stackOf(c.dataset.epic);
     if (stack && c.parentElement !== stack) { stack.appendChild(c); touched.add(ep); }
     if (!stack && c.parentElement.classList.contains('epic-stack')) {
       // out of an epic (or the epic left the board): back into the member's own column
       const col = document.querySelector(`.col[data-status="${c.dataset.status || 'open'}"]`);
-      touched.add(c.parentElement.closest('.task.epic')); if (col) col.insertBefore(c, col.querySelector('.empty'));
+      touched.add(epicCard(c.parentElement.dataset.epic)); if (col) col.insertBefore(c, col.querySelector('.empty'));
     }
   });
   touched.forEach(ep => ep && paintEpicCard(ep));
